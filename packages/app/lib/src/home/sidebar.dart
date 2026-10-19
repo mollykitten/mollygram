@@ -28,12 +28,17 @@ class Sidebar extends ConsumerStatefulWidget {
   const Sidebar({
     super.key,
     this.onSettings,
+    this.settingsShortcut,
     this.onPrivacy,
     this.onNewMessage,
   });
 
   /// The settings button at the rail's bottom.
   final VoidCallback? onSettings;
+
+  /// The settings shortcut as menus write it (`⌘,`), shown in the button's
+  /// tooltip; null for none.
+  final String? settingsShortcut;
 
   /// The ghost in the title bar, shown while a privacy extra is on.
   final VoidCallback? onPrivacy;
@@ -276,7 +281,9 @@ class _SidebarState extends ConsumerState<Sidebar> {
           ),
         MgIconButton(
           icon: MgIcons.settings,
-          tooltip: l10n.settings,
+          tooltip: widget.settingsShortcut == null
+              ? l10n.settings
+              : '${l10n.settings}  ${widget.settingsShortcut}',
           onPressed: widget.onSettings,
         ),
         MgIconButton(

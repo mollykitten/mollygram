@@ -249,6 +249,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     Positioned.fill(
                       child: Sidebar(
                         onSettings: _openSettings,
+                        settingsShortcut: keys['app.settings']?.label,
                         onPrivacy: () => _openSettings(privacyExtrasSectionId),
                         onNewMessage: _newMessage,
                       ),
