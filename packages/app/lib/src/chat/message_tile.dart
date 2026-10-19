@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:mollygram_core/mollygram_core.dart';
@@ -15,6 +16,7 @@ import '../plugins/message_hooks.dart';
 import '../settings/stickers/sticker_options.dart';
 import '../settings/stickers/sticker_set_sheet.dart';
 import 'bot_keyboard.dart';
+import 'chat_translation.dart';
 import 'concealed.dart';
 import 'custom_emoji.dart';
 import 'describe.dart';
@@ -86,6 +88,35 @@ class MessageRowContext {
   final bool selected;
 }
 
+/// Tells its child whether the pointer is over it, for what shows only
+/// on hover, without rebuilding the child as the pointer moves.
+class _HoverScope extends StatefulWidget {
+  const _HoverScope({required this.builder});
+
+  final Widget Function(BuildContext context, ValueListenable<bool> hovered)
+  builder;
+
+  @override
+  State<_HoverScope> createState() => _HoverScopeState();
+}
+
+class _HoverScopeState extends State<_HoverScope> {
+  final _hovered = ValueNotifier(false);
+
+  @override
+  void dispose() {
+    _hovered.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    onEnter: (_) => _hovered.value = true,
+    onExit: (_) => _hovered.value = false,
+    child: widget.builder(context, _hovered),
+  );
+}
+
 /// Callbacks of a message row.
 @immutable
 class MessageRowActions {
@@ -103,6 +134,8 @@ class MessageRowActions {
     this.onChecklistToggle,
     this.onInlineButton,
     this.onComments,
+    this.onOpenForwardSource,
+    this.onOpenSender,
   });
 
   /// Adds the reaction, or takes it back when the user had chosen it.
@@ -165,6 +198,56 @@ class MessageRowActions {
 
   /// A click on the comments row under a channel post, which opens them.
   final void Function(ConversationMessage message)? onComments;
+
+  /// A click on the name a forward came from, which opens that channel, at
+  /// the original post when it is known, or that person's profile.
+  final void Function(td.MessageOrigin origin)? onOpenForwardSource;
+
+  /// A click on a sender's avatar or name, which opens their profile, or
+  /// the channel's info for a channel post.
+  final void Function(MessageSenderId sender)? onOpenSender;
+}
+
+/// Makes [child] open a sender's profile: a pointer cursor over it and, for
+/// the avatar, a faint dimming on hover.
+class _SenderLink extends StatefulWidget {
+  const _SenderLink({
+    required this.onTap,
+    required this.child,
+    this.dimOnHover = false,
+  });
+
+  final VoidCallback? onTap;
+  final Widget child;
+  final bool dimOnHover;
+
+  @override
+  State<_SenderLink> createState() => _SenderLinkState();
+}
+
+class _SenderLinkState extends State<_SenderLink> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.onTap == null) return widget.child;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: widget.dimOnHover
+            ? AnimatedOpacity(
+                duration: const Duration(milliseconds: 120),
+                opacity: _hover ? 0.82 : 1,
+                child: widget.child,
+              )
+            : widget.child,
+      ),
+    );
+  }
 }
 
 /// A message, or an album, in Telegram's flat layout: no bubbles, the
@@ -185,8 +268,8 @@ class MessageTile extends StatelessWidget {
   final MessageRowActions actions;
 
   /// The avatar column and the gap after it.
-  static const double avatarSize = 36;
-  static const double contentIndent = avatarSize + 10;
+  static const double avatarSize = 32;
+  static const double contentIndent = avatarSize + 12;
 
   MessageStatus get _status {
     final message = row.primary;
@@ -235,7 +318,11 @@ class MessageTile extends StatelessWidget {
     final meta = MessageMeta(
       time: formatMessageTime(message.date, locale),
       status: _status,
-      label: message.editDate > 0 ? l10n.edited : null,
+      label: message.isDeleted
+          ? l10n.deletedMark
+          : message.editDate > 0
+          ? l10n.edited
+          : null,
       views: isPost && info != null && info.viewCount > 0
           ? compact.format(info.viewCount)
           : null,
@@ -246,6 +333,10 @@ class MessageTile extends StatelessWidget {
         formatFullDate(message.date, locale),
         if (message.editDate > 0)
           l10n.editedAt(formatFullDate(message.editDate, locale)),
+        if (message.deletedAt case final deletedAt?)
+          l10n.deletedAt(
+            formatFullDate(deletedAt.millisecondsSinceEpoch ~/ 1000, locale),
+          ),
       ].join('\n'),
     );
     final reactions = info?.reactions?.reactions;
@@ -260,7 +351,14 @@ class MessageTile extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _MessageBody(row: row, store: store, actions: actions),
+        // A deleted message stays readable, but steps back a little.
+        if (message.isDeleted)
+          Opacity(
+            opacity: 0.62,
+            child: _MessageBody(row: row, store: store, actions: actions),
+          )
+        else
+          _MessageBody(row: row, store: store, actions: actions),
         if (message.message.replyMarkup case td.ReplyMarkupInlineKeyboard(
           :final rows,
         ))
@@ -279,15 +377,20 @@ class MessageTile extends StatelessWidget {
               ),
             ),
           ),
-        if (reactions != null && reactions.isNotEmpty)
-          SelectionContainer.disabled(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 5),
-              child: Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                children: [
-                  for (final reaction in reactions)
+        // Always mounted, so the first reaction on a message pops in too.
+        SelectionContainer.disabled(
+          child: Padding(
+            padding: EdgeInsets.only(
+              top: reactions == null || reactions.isEmpty ? 0 : 5,
+            ),
+            child: ReactionRow(
+              chips: [
+                for (final reaction
+                    in reactions ?? const <td.MessageReaction>[])
+                  (
+                    reaction.type is td.ReactionTypePaid
+                        ? 'paid'
+                        : reactionKey(reaction.type),
                     ReactionChip(
                       emoji: reactionKey(reaction.type),
                       icon: customReactionIcon(
@@ -304,10 +407,11 @@ class MessageTile extends StatelessWidget {
                               reaction.isChosen,
                             ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
+        ),
         if (comments != null)
           SelectionContainer.disabled(
             child: Padding(
@@ -338,27 +442,45 @@ class MessageTile extends StatelessWidget {
         source: forwardOriginName(l10n, store, forward.origin),
         date: formatChatTime(forward.date, locale),
         color: source == null ? null : peerNameColor(c, store.colorOf(source)),
+        onSourceTap:
+            actions.onOpenForwardSource == null ||
+                forward.origin is td.MessageOriginHiddenUser
+            ? null
+            : () => actions.onOpenForwardSource!(forward.origin),
         child: content,
       );
     }
     final name = nameOfSender(l10n, store, message.sender);
     final onMenu = actions.onMenu;
+    final onOpenSender = actions.onOpenSender;
+    final VoidCallback? openSender = onOpenSender == null
+        ? null
+        : () => onOpenSender(message.sender);
+    final metrics = MgMetrics.of(buildContext);
     final tile = Padding(
-      padding: EdgeInsets.only(top: context.startsRun ? 10 : 4),
+      padding: EdgeInsets.only(
+        top: context.startsRun
+            ? (metrics.compact ? 6 : 12)
+            : metrics.messageGap,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: avatarSize,
             child: context.startsRun
-                ? SenderAvatar(
-                    name: name,
-                    photo: store.photoOf(message.sender),
-                    size: avatarSize,
+                ? _SenderLink(
+                    dimOnHover: true,
+                    onTap: openSender,
+                    child: SenderAvatar(
+                      name: name,
+                      photo: store.photoOf(message.sender),
+                      size: avatarSize,
+                    ),
                   )
                 : null,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -366,14 +488,26 @@ class MessageTile extends StatelessWidget {
               children: [
                 if (context.startsRun)
                   SelectionContainer.disabled(
-                    child: Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: mgTextStyle(
-                        c,
-                        weight: FontWeight.w600,
-                        color: peerNameColor(c, store.colorOf(message.sender)),
+                    // Lifted so the name sits on the avatar's top edge.
+                    child: Transform.translate(
+                      offset: const Offset(0, -2),
+                      child: _SenderLink(
+                        onTap: openSender,
+                        child: Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: mgTextStyle(
+                            c,
+                            size: MgType.small,
+                            weight: MgWeight.medium,
+                            color: peerNameColor(
+                              c,
+                              store.colorOf(message.sender),
+                            ),
+                            height: 1.35,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -387,7 +521,16 @@ class MessageTile extends StatelessWidget {
                       ),
                     ),
                   ),
-                content,
+                // Message text reads a step larger than the rest, on
+                // lines just open enough for long paragraphs.
+                DefaultTextStyle.merge(
+                  style: TextStyle(
+                    fontSize: MgType.message,
+                    height: 1.35,
+                    letterSpacing: mgTracking(MgType.message),
+                  ),
+                  child: content,
+                ),
               ],
             ),
           ),
@@ -537,17 +680,22 @@ class _MessageBody extends StatelessWidget {
   ConversationMessage get message => row.primary;
 
   /// The text of [of] reports its selection for a quote.
-  FormattedTextView _text(td.FormattedText text, {ConversationMessage? of}) {
+  Widget _text(td.FormattedText text, {ConversationMessage? of}) {
     final onTextSelected = actions.onTextSelected;
     final owner = of ?? message;
-    // Bot commands in it go to this chat, meant for the bot that sent it.
-    return FormattedTextView(
+    // The chat may be shown translated; the text is then the translation.
+    return TranslatedText(
+      message: owner,
       text: text,
-      chatId: owner.chatId,
-      senderUserId: owner.sender.isChat ? null : owner.sender.id,
-      onSelection: onTextSelected == null
-          ? null
-          : (quote) => onTextSelected(owner, quote),
+      // Bot commands in it go to this chat, meant for the bot that sent it.
+      builder: (shown) => FormattedTextView(
+        text: shown,
+        chatId: owner.chatId,
+        senderUserId: owner.sender.isChat ? null : owner.sender.id,
+        onSelection: onTextSelected == null
+            ? null
+            : (quote) => onTextSelected(owner, quote),
+      ),
     );
   }
 
@@ -602,14 +750,16 @@ class _MessageBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ..._headers(l10n),
-        _content(context, l10n),
-        PluginMessageExtras(message: message),
-      ],
+    return _HoverScope(
+      builder: (context, hovered) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ..._headers(l10n),
+          _content(context, l10n),
+          PluginMessageExtras(message: message, hovered: hovered),
+        ],
+      ),
     );
   }
 
@@ -669,11 +819,12 @@ class _MessageBody extends StatelessWidget {
             ),
           null => _BigEmoji(emoji),
         };
-      case td.MessageVideoNote(:final videoNote):
+      case td.MessageVideoNote(:final videoNote, :final isViewed):
         final note = VideoNoteContent(
           chatId: message.chatId,
           messageId: message.id,
           videoNote: videoNote,
+          unread: !isViewed,
         );
         final reason = concealmentOf(message);
         if (reason == null) return note;
@@ -707,13 +858,20 @@ class _MessageBody extends StatelessWidget {
           ],
         );
       case td.MessageDocument(:final document):
-        return _withCaption(DocumentContent(document: document));
-      case td.MessageVoiceNote(:final voiceNote):
+        return _withCaption(
+          DocumentContent(
+            chatId: message.chatId,
+            messageId: message.id,
+            document: document,
+          ),
+        );
+      case td.MessageVoiceNote(:final voiceNote, :final isListened):
         return _withCaption(
           VoiceNoteContent(
             chatId: message.chatId,
             messageId: message.id,
             voiceNote: voiceNote,
+            unread: !isListened,
           ),
         );
       case td.MessageAudio(:final audio):
@@ -732,7 +890,9 @@ class _MessageBody extends StatelessWidget {
       final media = Padding(
         padding: const EdgeInsets.only(top: 2),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(
+            MgMetrics.of(context).mediaRadius,
+          ),
           child: visual.widget,
         ),
       );
@@ -1131,6 +1291,7 @@ class _LinkPreview extends StatelessWidget {
               child: TdImage(
                 file: photoSizeFor(photo, side * 2)?.photo,
                 minithumbnail: photo.minithumbnail,
+                kind: MediaDownloadKind.photos,
               ),
             )
           : TdImage(

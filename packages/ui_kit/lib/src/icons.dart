@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -44,6 +46,20 @@ abstract final class MgIcons {
     '<path d="M6 20V10a6 6 0 0 1 12 0v10l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5z"/>'
         '<path d="M10 10h.01M14 10h.01" stroke-width="2.4"/>',
   );
+  static const settings = MgIconData(
+    'settings',
+    '<circle cx="12" cy="12" r="3"/>'
+        '<path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1'
+        'a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1'
+        'a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8'
+        'l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1'
+        'a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8'
+        'l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1'
+        'a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8'
+        'l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4'
+        'h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+    stroke: 1.6,
+  );
   static const panel = MgIconData(
     'panel',
     '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/>',
@@ -82,6 +98,12 @@ abstract final class MgIcons {
   static const camera = MgIconData(
     'camera',
     '<path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/>',
+  );
+  static const switchCamera = MgIconData(
+    'switchCamera',
+    '<path d="M3 8h4l2-3h6l2 3h4v11H3z"/>'
+        '<path d="M9 12.5a3 3 0 0 1 5.4-1.8M15 13.5a3 3 0 0 1-5.4 1.8"/>'
+        '<path d="M14.6 8.8v2h-2M9.4 17.2v-2h2"/>',
   );
   static const lockOpen = MgIconData(
     'lockOpen',
@@ -191,6 +213,33 @@ abstract final class MgIcons {
   static const lock = MgIconData(
     'lock',
     '<path d="M7 11V8a5 5 0 0 1 10 0v3M5 11h14v9H5z"/>',
+  );
+  // Chat list (TelegramSwift's dialog row and context menu).
+  static const pin = MgIconData(
+    'pin',
+    '<path d="M15 3l6 6-3 1-4 4 1 5-2 2-4-4-5 5-1-1 5-5-4-4 2-2 5 1 4-4z" '
+        'fill="currentColor" stroke="none"/>',
+  );
+
+  /// Before the title of a group in the chat list.
+  static const group = MgIconData(
+    'group',
+    '<circle cx="9" cy="8" r="3.5"/>'
+        '<path d="M2 20a7 7 0 0 1 14 0M16 4.5a3.5 3.5 0 0 1 0 7"/>',
+    stroke: 2,
+  );
+
+  /// Before the title of a channel in the chat list.
+  static const channel = MgIconData(
+    'channel',
+    '<path d="M4 10v4h3l6 4V6L7 10z"/>',
+    stroke: 2,
+  );
+  static const archive = MgIconData(
+    'archive',
+    '<rect x="3" y="4" width="18" height="5" rx="1.5"/>'
+        '<path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/>',
+    stroke: 1.7,
   );
   static const file = MgIconData(
     'file',
@@ -313,7 +362,113 @@ abstract final class MgIcons {
   );
   static const plus = MgIconData('plus', '<path d="M12 5v14M5 12h14"/>');
 
+  // Message menu.
+  static const reply = MgIconData(
+    'reply',
+    '<path d="M10 5 3 12l7 7M3 12h9a8 8 0 0 1 8 8"/>',
+  );
+  static const quote = MgIconData(
+    'quote',
+    '<path d="M10 7.5C7 8 5 10 5 13.5V17h4.5v-4.5H7M19 7.5c-3 .5-5 2.5-5 6V17h4.5v-4.5H16"/>',
+    stroke: 1.6,
+  );
+  static const edit = MgIconData(
+    'edit',
+    '<path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="m14 7 3 3"/>',
+  );
+  static const link = MgIconData(
+    'link',
+    '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/>'
+        '<path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  );
+  static const select = MgIconData(
+    'select',
+    '<circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/>',
+  );
+  static const code = MgIconData(
+    'code',
+    '<path d="m8 7-5 5 5 5M16 7l5 5-5 5"/>',
+  );
+  static const spoiler = MgIconData(
+    'spoiler',
+    '<path d="M3 12S6.5 5.5 12 5.5 21 12 21 12s-3.5 6.5-9 6.5S3 12 3 12z"/>'
+        '<circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/>',
+  );
+
+  // Context menus (TelegramSwift's menu icons, redrawn as line icons).
+  static const pinOutline = MgIconData(
+    'pinOutline',
+    '<path d="M9 3h6l-1 7 3 3v1H7v-1l3-3zM12 14v7"/>',
+  );
+  static const unpin = MgIconData(
+    'unpin',
+    '<path d="M9 3h6l-1 7 3 3v1H7v-1l3-3zM12 14v7M4 4l16 16"/>',
+  );
+  static const markUnread = MgIconData(
+    'markUnread',
+    '<path d="M13 5H4v11h5l-5 4v-4M20 11v5H9"/>'
+        '<circle cx="18.5" cy="5.5" r="2.5" fill="currentColor" stroke="none"/>',
+  );
+  static const unarchive = MgIconData(
+    'unarchive',
+    '<rect x="3" y="4" width="18" height="5" rx="1.5"/>'
+        '<path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M12 17v-5M9.5 14.5'
+        'L12 12l2.5 2.5"/>',
+    stroke: 1.7,
+  );
+  static const clear = MgIconData(
+    'clear',
+    '<path d="M15 4l5 5-9 9H7l-3-3zM11 8l5 5M10 20h10"/>',
+  );
+  static const leave = MgIconData(
+    'leave',
+    '<path d="M14 4H5v16h9M10 12h10M17 9l3 3-3 3"/>',
+  );
+  static const hide = MgIconData(
+    'hide',
+    '<path d="M3 12s3.5-6.5 9-6.5 9 6.5 9 6.5-3.5 6.5-9 6.5S3 12 3 12z"/>'
+        '<circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/>',
+  );
+  static const poll = MgIconData(
+    'poll',
+    '<path d="M5 20V11M12 20V4M19 20v-6"/>',
+    stroke: 2,
+  );
+  static const location = MgIconData(
+    'location',
+    '<path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/>'
+        '<circle cx="12" cy="9" r="2.5"/>',
+  );
+  static const folder = MgIconData(
+    'folder',
+    '<path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5'
+        'a2 2 0 0 1-2-2z"/>',
+  );
+  static const star = MgIconData(
+    'star',
+    '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3'
+        ' 6.1-.9z"/>',
+  );
+  static const tag = MgIconData(
+    'tag',
+    '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
+  );
+
   static const List<MgIconData> all = [
+    pinOutline,
+    unpin,
+    markUnread,
+    unarchive,
+    clear,
+    leave,
+    hide,
+    poll,
+    location,
+    folder,
+    star,
+    tag,
+    group,
+    channel,
     compose,
     search,
     call,
@@ -323,6 +478,7 @@ abstract final class MgIcons {
     emoji,
     mic,
     camera,
+    switchCamera,
     lockOpen,
     chevronUp,
     trash,
@@ -352,6 +508,8 @@ abstract final class MgIcons {
     notifications,
     lock,
     file,
+    pin,
+    archive,
     recent,
     favorite,
     animals,
@@ -375,6 +533,13 @@ abstract final class MgIcons {
     heart,
     check,
     plus,
+    reply,
+    quote,
+    edit,
+    link,
+    select,
+    code,
+    spoiler,
   ];
 }
 
@@ -398,6 +563,9 @@ class MgIcon extends StatelessWidget {
   final Color? color;
   final String? semanticLabel;
 
+  /// The thinnest line drawn, in logical pixels.
+  static const double minLine = 1.45;
+
   @override
   Widget build(BuildContext context) {
     final color =
@@ -405,9 +573,12 @@ class MgIcon extends StatelessWidget {
         IconTheme.of(context).color ??
         DefaultTextStyle.of(context).style.color ??
         const Color(0xFF000000);
+    // The strokes are drawn at 24 x 24 and shrink with the icon; small
+    // icons keep a line of at least [minLine] px so they don't fade out.
+    final width = math.max(stroke ?? icon.stroke, minLine * 24 / size);
     return SvgPicture.string(
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
-      'stroke="currentColor" stroke-width="${stroke ?? icon.stroke}" '
+      'stroke="currentColor" stroke-width="$width" '
       'stroke-linecap="round" stroke-linejoin="round">${icon.body}</svg>',
       width: size,
       height: size,

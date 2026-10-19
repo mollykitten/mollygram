@@ -1,22 +1,24 @@
 import 'package:flutter/widgets.dart';
 
-import '../glass/glass.dart';
 import '../theme/colors.dart';
 import '../theme/theme.dart';
 
-/// The floating glass island with the chat list (304 px wide in the mockup,
-/// 8 px from the window edges, radius 16).
+/// The chat sidebar: it lies flat on the window frame, with no glass of its
+/// own, 340 px wide.
 ///
-/// The 44 px title bar reserves [titleBarInset] on the left for the system
-/// window buttons (on macOS the runner centers them in this row, see
-/// MainFlutterWindow.swift; keep the two in sync); [titleBarFill] fills the
-/// free space (the app puts its window drag area there) and [actions] sit on
-/// the right.
+/// From the top: the 44 px title bar row, 8 px below the window's top edge
+/// (the system window buttons sit at its left, inside [titleBarInset]; on
+/// macOS the runner puts them there, see MainFlutterWindow.swift; keep the
+/// two in sync), then the [search] field, the [pinned] chats, the
+/// [folders], a [banner] and the chat list [body]. [titleBarFill] lies
+/// under the title bar row but the actions (the app puts its window drag
+/// area there).
 class SidebarIsland extends StatelessWidget {
   const SidebarIsland({
     super.key,
     required this.search,
     required this.body,
+    this.pinned,
     this.folders,
     this.banner,
     this.actions = const [],
@@ -27,57 +29,71 @@ class SidebarIsland extends StatelessWidget {
   /// Usually an [MgSearchField].
   final Widget search;
 
-  /// Usually a [FolderTabBar].
+  /// The pinned chats under the search field, such as a [PinnedChatGrid];
+  /// it brings its own padding.
+  final Widget? pinned;
+
+  /// A row over the list, such as [FolderSegments].
   final Widget? folders;
 
   /// A row between the folders and the list, such as the downloads bar;
   /// null for none. It brings its own padding.
   final Widget? banner;
 
-  /// The chat list; it fills the rest of the island and scrolls inside it.
+  /// The chat list; it fills the rest of the sidebar and scrolls inside it.
   final Widget body;
   final List<Widget> actions;
   final double titleBarInset;
   final Widget? titleBarFill;
 
-  static const double width = 304;
-  static const double radius = 16;
+  static const double width = 340;
   static const double titleBarHeight = 44;
+
+  /// From the window's top edge to the title bar row; the chat cards start
+  /// at the same height.
+  static const double topInset = 8;
+
+  /// The side padding of everything but the list, whose rows bring their
+  /// own.
+  static const double gutter = 10;
 
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return Glass(
-      radius: radius,
-      child: DefaultTextStyle.merge(
-        style: mgTextStyle(c),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              height: titleBarHeight,
-              child: Row(
-                children: [
-                  SizedBox(width: titleBarInset, child: titleBarFill),
-                  Expanded(child: titleBarFill ?? const SizedBox()),
-                  ...actions,
-                  const SizedBox(width: 8),
-                ],
-              ),
+    final fill = titleBarFill;
+    return DefaultTextStyle.merge(
+      style: mgTextStyle(c),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: topInset + titleBarHeight,
+            child: Stack(
+              children: [
+                if (fill != null) Positioned.fill(child: fill),
+                Positioned(
+                  top: topInset,
+                  left: titleBarInset,
+                  right: gutter - 4,
+                  height: titleBarHeight,
+                  child: Row(children: [const Spacer(), ...actions]),
+                ),
+              ],
             ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(gutter, 0, gutter, 12),
+            child: search,
+          ),
+          ?pinned,
+          if (folders != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: search,
+              padding: const EdgeInsets.fromLTRB(gutter, 0, gutter, 8),
+              child: folders,
             ),
-            if (folders != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: folders,
-              ),
-            ?banner,
-            Expanded(child: body),
-          ],
-        ),
+          ?banner,
+          Expanded(child: body),
+        ],
       ),
     );
   }

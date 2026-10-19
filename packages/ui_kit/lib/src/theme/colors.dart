@@ -34,6 +34,9 @@ class MgColors extends ThemeExtension<MgColors> {
     required this.shadow,
     required this.wallpaperBase,
     required this.wallpaper,
+    required this.frame,
+    required this.card,
+    this.selection,
   });
 
   final Brightness brightness;
@@ -43,6 +46,22 @@ class MgColors extends ThemeExtension<MgColors> {
 
   /// Secondary text: subtitles, times, placeholders, idle icons.
   final Color fg2;
+
+  /// Icons at rest: the secondary text's grey, one tone for both, as in
+  /// TelegramSwift.
+  Color get icon => fg2;
+
+  /// [color] made opaque over the matte base of [glassSolid]. The blurred
+  /// theme's frame and card are translucent so the desktop shows through
+  /// the main surfaces; panels, dialogs and the settings window use this to
+  /// stay readable and matte instead of showing the desktop sharply.
+  Color solid(Color color) => color.a >= 0.99
+      ? color
+      : Color.alphaBlend(color, glassSolid.withValues(alpha: 1));
+
+  /// The composer's resting icons and its placeholder: lighter than the
+  /// secondary text in the light theme, so they don't read as typed text.
+  Color get quiet => isDark ? fg2 : muted;
 
   /// The single accent: selection, unread badges, send button, links.
   final Color accent;
@@ -113,7 +132,24 @@ class MgColors extends ThemeExtension<MgColors> {
   /// top left, top right, bottom right, bottom left.
   final List<Color> wallpaper;
 
+  /// The window frame: the tinted surface the sidebar sits on and the chat
+  /// cards float over.
+  final Color frame;
+
+  /// The chat card: the solid surface of a conversation pane.
+  final Color card;
+
+  /// The fill of the selected chat row, when it differs from [accent] (a
+  /// light accent of the dark theme needs a deeper fill under white text).
+  final Color? selection;
+
+  /// The fill of the selected chat row.
+  Color get selected => selection ?? accent;
+
   bool get isDark => brightness == Brightness.dark;
+
+  /// The "Draft:" lead in the chat list, the system red of both themes.
+  static const draftRed = Color(0xFFFF453A);
 
   static const light = MgColors(
     brightness: Brightness.light,
@@ -131,9 +167,9 @@ class MgColors extends ThemeExtension<MgColors> {
     hover: Color(0x0D000000),
     avatarTop: Color(0xFFA9ADB6),
     avatarBottom: Color(0xFF878B94),
-    muted: Color(0xFFA1A1A6),
+    muted: Color(0xFF737378),
     mediaPill: Color(0x59000000),
-    datePill: Color(0x2E000000),
+    datePill: Color(0x8C000000),
     glass: Color(0x6BFFFFFF),
     glassSolid: Color(0xF0F7F7F9),
     rim: Color(0x99FFFFFF),
@@ -148,6 +184,8 @@ class MgColors extends ThemeExtension<MgColors> {
       Color(0xFFD5D88D),
       Color(0xFF88B884),
     ],
+    frame: Color(0xFFE6E8EC),
+    card: Color(0xFFFFFFFF),
   );
 
   static const dark = MgColors(
@@ -166,7 +204,7 @@ class MgColors extends ThemeExtension<MgColors> {
     hover: Color(0x0FFFFFFF),
     avatarTop: Color(0xFF71757E),
     avatarBottom: Color(0xFF565A62),
-    muted: Color(0xFF636366),
+    muted: Color(0xFF98989D),
     mediaPill: Color(0x59000000),
     datePill: Color(0x2E000000),
     glass: Color(0x6B1C1E22),
@@ -183,6 +221,8 @@ class MgColors extends ThemeExtension<MgColors> {
       Color(0xFF3B5465),
       Color(0xFF203845),
     ],
+    frame: Color(0xFF1C1D20),
+    card: Color(0xFF26272B),
   );
 
   /// The tokens of the nearest theme. Falls back to [light] when the theme
@@ -223,6 +263,9 @@ class MgColors extends ThemeExtension<MgColors> {
     Color? shadow,
     Color? wallpaperBase,
     List<Color>? wallpaper,
+    Color? frame,
+    Color? card,
+    Object? selection = _keep,
   }) {
     return MgColors(
       brightness: brightness ?? this.brightness,
@@ -254,6 +297,11 @@ class MgColors extends ThemeExtension<MgColors> {
       shadow: shadow ?? this.shadow,
       wallpaperBase: wallpaperBase ?? this.wallpaperBase,
       wallpaper: wallpaper ?? this.wallpaper,
+      frame: frame ?? this.frame,
+      card: card ?? this.card,
+      selection: identical(selection, _keep)
+          ? this.selection
+          : selection as Color?,
     );
   }
 
@@ -292,6 +340,13 @@ class MgColors extends ThemeExtension<MgColors> {
         for (var i = 0; i < wallpaper.length; i++)
           c(wallpaper[i], other.wallpaper[i]),
       ],
+      frame: c(frame, other.frame),
+      card: c(card, other.card),
+      // Lerping towards a missing selection would fade it out; the accent
+      // stands in for it.
+      selection: selection == null && other.selection == null
+          ? null
+          : c(selected, other.selected),
     );
   }
 }

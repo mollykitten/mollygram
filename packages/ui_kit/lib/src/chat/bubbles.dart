@@ -100,7 +100,7 @@ class MessageMeta extends StatelessWidget {
   static const Color failedColor = Color(0xFFFF3B30);
 
   static TextStyle styleOf(MgColors c, {Color? color}) =>
-      mgTextStyle(c, size: MgType.meta, color: color ?? c.fg2, height: 1.35);
+      mgTextStyle(c, size: MgType.meta, color: color ?? c.muted, height: 1.35);
 
   /// The laid out width of a meta, used to leave room for it after text.
   static double widthOf(
@@ -162,15 +162,19 @@ class MessageMeta extends StatelessWidget {
           Text(forwards!, style: style),
           const SizedBox(width: _labelGap),
         ],
-        Text(time, style: style),
         if (tick != null) ...[
-          const SizedBox(width: _tickGap),
           MgIcon(
             tick,
             size: _tickSize,
-            color: status == MessageStatus.failed ? failedColor : style.color,
+            color: switch (status) {
+              MessageStatus.failed => failedColor,
+              MessageStatus.sending => style.color,
+              _ => color ?? c.accent,
+            },
           ),
+          const SizedBox(width: _tickGap),
         ],
+        Text(time, style: style),
       ],
     );
     final tooltip = this.tooltip;
@@ -334,9 +338,12 @@ class DatePill extends StatelessWidget {
 
 /// The dark pill with the time over photos and video messages.
 class MediaPill extends StatelessWidget {
-  const MediaPill(this.text, {super.key});
+  const MediaPill(this.text, {this.unread = false, super.key});
 
   final String text;
+
+  /// A dot after the text for a voice or circle nobody has played yet.
+  final bool unread;
 
   @override
   Widget build(BuildContext context) {
@@ -347,13 +354,52 @@ class MediaPill extends StatelessWidget {
         color: c.mediaPill,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        text,
-        style: mgTextStyle(
-          c,
-          size: MgType.meta,
-          color: const Color(0xFFFFFFFF),
-          height: 1.35,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            text,
+            style: mgTextStyle(
+              c,
+              size: MgType.meta,
+              color: const Color(0xFFFFFFFF),
+              height: 1.35,
+            ),
+          ),
+          MgUnreadDot(unread: unread, color: const Color(0xFFFFFFFF)),
+        ],
+      ),
+    );
+  }
+}
+
+/// The small dot beside the length of a voice message or circle that has not
+/// been played yet. It fades and folds away when [unread] turns false.
+class MgUnreadDot extends StatelessWidget {
+  const MgUnreadDot({required this.unread, required this.color, super.key});
+
+  final bool unread;
+  final Color color;
+
+  static const double size = 6;
+  static const Duration duration = Duration(milliseconds: 200);
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      width: unread ? size + 5 : 0,
+      height: size,
+      alignment: Alignment.centerRight,
+      child: AnimatedOpacity(
+        duration: duration,
+        curve: Curves.easeOutCubic,
+        opacity: unread ? 1 : 0,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
       ),
     );

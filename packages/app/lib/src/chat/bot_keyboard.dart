@@ -147,7 +147,9 @@ class _KeyState extends State<_Key> {
       td.ButtonStyleDanger() => (_danger, const Color(0xFFFFFFFF)),
       td.ButtonStyleSuccess() => (_success, const Color(0xFFFFFFFF)),
       td.ButtonStyleLink() => (const Color(0x00000000), c.accent),
-      _ => (c.datePill, c.fg),
+      // A light neutral fill under the regular text colour; the date pill
+      // is darker and carries white text.
+      _ => (const Color(0x2E000000), c.fg),
     };
     final animate = !MediaQuery.disableAnimationsOf(context);
     final pill = AnimatedContainer(
@@ -234,7 +236,7 @@ class _BotMenuPillState extends State<BotMenuPill> {
     final c = MgColors.of(context);
     final animate = !MediaQuery.disableAnimationsOf(context);
     return Padding(
-      padding: const EdgeInsets.only(right: 2, bottom: 4),
+      padding: const EdgeInsets.only(right: 2, bottom: 3),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hover = true),
@@ -246,9 +248,9 @@ class _BotMenuPillState extends State<BotMenuPill> {
           onTap: widget.onPressed,
           child: AnimatedContainer(
             duration: Duration(milliseconds: animate ? 120 : 0),
-            height: 24,
-            constraints: const BoxConstraints(maxWidth: 120),
-            padding: const EdgeInsets.symmetric(horizontal: 9),
+            height: 30,
+            constraints: const BoxConstraints(maxWidth: 140),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             alignment: Alignment.center,
             transformAlignment: Alignment.center,
             transform: Matrix4.diagonal3Values(
@@ -258,13 +260,13 @@ class _BotMenuPillState extends State<BotMenuPill> {
             ),
             decoration: BoxDecoration(
               color: _hover ? Color.lerp(c.accent, c.fg, 0.08) : c.accent,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(15),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                MgIcon(MgIcons.list, size: 13, color: c.onAccent),
-                const SizedBox(width: 4),
+                MgIcon(MgIcons.list, size: 15, color: c.onAccent),
+                const SizedBox(width: 5),
                 Flexible(
                   child: Text(
                     widget.label,
@@ -272,8 +274,8 @@ class _BotMenuPillState extends State<BotMenuPill> {
                     overflow: TextOverflow.ellipsis,
                     style: mgTextStyle(
                       c,
-                      size: MgType.caption,
-                      weight: FontWeight.w600,
+                      size: MgType.small,
+                      weight: MgWeight.medium,
                       color: c.onAccent,
                       height: 1.2,
                     ),

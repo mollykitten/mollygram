@@ -51,11 +51,22 @@ double? _progressOf(td.File file) {
 FileController _filesOf(WidgetRef ref) =>
     ref.read(telegramSessionProvider).requireValue.files;
 
+DownloadsController _downloadsOf(WidgetRef ref) =>
+    ref.read(telegramSessionProvider).requireValue.downloads;
+
 /// A file in a bubble: the round button (download, cancel, open), the name
 /// and the size or the download progress.
 class DocumentContent extends ConsumerWidget {
-  const DocumentContent({super.key, required this.document, this.meta});
+  const DocumentContent({
+    super.key,
+    required this.chatId,
+    required this.messageId,
+    required this.document,
+    this.meta,
+  });
 
+  final int chatId;
+  final int messageId;
   final td.Document document;
 
   /// The time and ticks, drawn at the end of the size line.
@@ -81,9 +92,11 @@ class DocumentContent extends ConsumerWidget {
           final files = _filesOf(ref);
           switch (state) {
             case _FileState.remote:
+              // A click is a download the user asked for: it goes on the
+              // downloads list, where it can be paused and found again.
               unawaited(
-                files
-                    .download(file.id, priority: DownloadPriority.requested)
+                _downloadsOf(ref)
+                    .add(file.id, chatId: chatId, messageId: messageId)
                     .then<void>((_) {}, onError: (Object _) {}),
               );
             case _FileState.downloading:
@@ -132,12 +145,16 @@ class VoiceNoteContent extends ConsumerStatefulWidget {
     required this.chatId,
     required this.messageId,
     required this.voiceNote,
+    this.unread = false,
     this.meta,
   });
 
   final int chatId;
   final int messageId;
   final td.VoiceNote voiceNote;
+
+  /// Nobody has played it yet: the receiver, or for our own the recipient.
+  final bool unread;
   final Widget? meta;
 
   @override
@@ -199,6 +216,7 @@ class _VoiceNoteContentState extends ConsumerState<VoiceNoteContent> {
           ],
         ),
         meta: widget.meta,
+        unread: widget.unread,
       ),
     );
     if (!_open) return row;
@@ -370,6 +388,7 @@ class _AudioTrack extends ConsumerWidget {
                 if (playing) return player.pause();
                 // Read before any await: the row may scroll away meanwhile.
                 final files = _filesOf(ref);
+                final downloads = _downloadsOf(ref);
                 final conversations = ref
                     .read(telegramSessionProvider)
                     .requireValue
@@ -380,6 +399,11 @@ class _AudioTrack extends ConsumerWidget {
                     return files.cancel(file.id).catchError((Object _) {});
                   }
                   try {
+                    await downloads.add(
+                      file.id,
+                      chatId: chatId,
+                      messageId: messageId,
+                    );
                     path = downloadedPath(await files.downloadNow(file.id));
                   } on Object {
                     return;
@@ -530,6 +554,7 @@ class _FileRow extends StatelessWidget {
     this.subtitleTrailing,
     this.meta,
     this.onTap,
+    this.unread = false,
   });
 
   final Widget button;
@@ -541,6 +566,9 @@ class _FileRow extends StatelessWidget {
   final Widget? subtitleTrailing;
   final Widget? meta;
   final VoidCallback? onTap;
+
+  /// A dot after the subtitle: a voice message nobody has played yet.
+  final bool unread;
 
   @override
   Widget build(BuildContext context) {
@@ -571,6 +599,10 @@ class _FileRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: MessageMeta.styleOf(c),
                     ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 5),
+                    child: MgUnreadDot(unread: unread, color: c.accent),
                   ),
                   AnimatedSize(
                     duration: const Duration(milliseconds: 180),

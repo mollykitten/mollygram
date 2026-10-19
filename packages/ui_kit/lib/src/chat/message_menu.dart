@@ -4,22 +4,54 @@ import 'package:flutter/services.dart';
 import '../glass/glass.dart';
 import '../icon_button.dart';
 import '../icons.dart';
+import '../sign_in/sign_in.dart';
 import '../theme/colors.dart';
 import '../theme/theme.dart';
+import '../theme/tokens.dart';
+import 'dialogs.dart';
 
 /// One command in a [showMgMenu] menu.
 final class MgMenuItem {
   const MgMenuItem({
     required this.label,
-    required this.onSelected,
+    this.icon,
+    this.leading,
+    this.onSelected,
     this.destructive = false,
-  });
+    this.submenu = const [],
+  }) : _divider = false;
+
+  /// A thin line between groups of items.
+  const MgMenuItem.divider()
+    : label = '',
+      icon = null,
+      leading = null,
+      onSelected = null,
+      destructive = false,
+      submenu = const [],
+      _divider = true;
 
   final String label;
-  final VoidCallback onSelected;
+
+  /// A small line icon before the label; when any item of a menu has one,
+  /// the labels of all of them line up after the icon column.
+  final MgIconData? icon;
+
+  /// A small widget (an avatar) in the icon's place, about 18 px across.
+  final Widget? leading;
+
+  /// Runs after the menu closes; an item with a [submenu] may leave it out.
+  final VoidCallback? onSelected;
 
   /// Drawn in red, like Delete.
   final bool destructive;
+
+  /// Items shown beside this one while it is hovered, like a macOS
+  /// submenu; the row gets a chevron.
+  final List<MgMenuItem> submenu;
+  final bool _divider;
+
+  bool get isDivider => _divider;
 }
 
 /// Shows a context menu at [position] (global coordinates), kept inside
@@ -27,18 +59,55 @@ final class MgMenuItem {
 /// it closes the menu itself through [Navigator.pop].
 ///
 /// Like a macOS menu it appears at once, with no animation and no dimming;
-/// a click outside or Esc closes it.
+/// a click outside or Esc closes it. Items with a submenu open it beside
+/// themselves on hover.
 Future<void> showMgMenu(
   BuildContext context, {
   required Offset position,
   required List<MgMenuItem> items,
   Widget? header,
 }) {
-  return showMgPopover(
-    context,
-    position: position,
-    child: _Menu(items: items, header: header),
+  return showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: const Color(0x00000000),
+    transitionDuration: Duration.zero,
+    pageBuilder: (context, _, _) =>
+        _MenuRoot(position: position, items: items, header: header),
   );
+}
+
+/// Shows a dropdown under the button at [anchor] (its rect in global
+/// coordinates), with a pointer aimed at the button, as Telegram's popovers
+/// have. It opens upwards near the bottom of the window and leans left
+/// for a button on the right half. Keys and submenus work as in
+/// [showMgMenu].
+Future<void> showMgDropdown(
+  BuildContext context, {
+  required Rect anchor,
+  required List<MgMenuItem> items,
+  Widget? header,
+}) {
+  return showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: const Color(0x00000000),
+    transitionDuration: Duration.zero,
+    pageBuilder: (context, _, _) => _MenuRoot(
+      position: anchor.bottomLeft,
+      anchor: anchor,
+      items: items,
+      header: header,
+    ),
+  );
+}
+
+/// The global rect of the widget at [context], for [showMgDropdown].
+Rect mgAnchorOf(BuildContext context) {
+  final box = context.findRenderObject()! as RenderBox;
+  return box.localToGlobal(Offset.zero) & box.size;
 }
 
 /// Shows [child] at [position], flipped to the left or upwards when there
@@ -62,11 +131,281 @@ Future<void> showMgPopover(
   );
 }
 
+/// The menu and, while an item with a submenu is hovered, that submenu.
+class _MenuRoot extends StatefulWidget {
+  const _MenuRoot({
+    required this.position,
+    required this.items,
+    this.header,
+    this.anchor,
+  });
+
+  final Offset position;
+
+  /// The button a dropdown hangs from; null for a context menu at
+  /// [position].
+  final Rect? anchor;
+  final List<MgMenuItem> items;
+  final Widget? header;
+
+  @override
+  State<_MenuRoot> createState() => _MenuRootState();
+}
+
+class _MenuRootState extends State<_MenuRoot> {
+  MgMenuItem? _open;
+  Rect? _anchor;
+
+  /// The highlighted row of the menu and of the open submenu: under the
+  /// mouse, or moved there with the arrow keys.
+  MgMenuItem? _active;
+  MgMenuItem? _subActive;
+
+  /// The arrow keys move in the submenu, after → or Enter opened it.
+  var _inSubmenu = false;
+
+  final _rows = <MgMenuItem, GlobalKey>{};
+  final _focus = FocusNode(debugLabel: 'menu');
+
+  GlobalKey _keyOf(MgMenuItem item) => _rows[item] ??= GlobalKey();
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _hover(MgMenuItem item, Rect row) {
+    setState(() {
+      _active = item;
+      _inSubmenu = false;
+      _subActive = null;
+    });
+    if (item.submenu.isEmpty) {
+      if (_open != null) setState(() => _open = null);
+      return;
+    }
+    if (identical(_open, item)) return;
+    setState(() {
+      _open = item;
+      _anchor = row;
+    });
+  }
+
+  void _hoverSub(MgMenuItem item, Rect row) => setState(() {
+    _subActive = item;
+    _inSubmenu = true;
+  });
+
+  void _leave(MgMenuItem item) {
+    if (identical(_active, item) && !identical(_open, item)) {
+      setState(() => _active = null);
+    } else if (identical(_subActive, item)) {
+      setState(() => _subActive = null);
+    }
+  }
+
+  /// Opens [item]'s submenu with its first row highlighted.
+  void _openSubmenu(MgMenuItem item) {
+    final row = _rows[item]?.currentContext?.findRenderObject();
+    if (row is! RenderBox) return;
+    setState(() {
+      _open = item;
+      _anchor = row.localToGlobal(Offset.zero) & row.size;
+      _inSubmenu = true;
+      _subActive = _step(item.submenu, null, 1);
+    });
+  }
+
+  /// The next selectable item of [items] after [from], [delta] rows on;
+  /// the first (or last) one when nothing is highlighted. Stops at the
+  /// ends, as macOS menus do.
+  static MgMenuItem? _step(
+    List<MgMenuItem> items,
+    MgMenuItem? from,
+    int delta,
+  ) {
+    final rows = [
+      for (final item in items)
+        if (!item.isDivider) item,
+    ];
+    if (rows.isEmpty) return null;
+    final at = from == null ? -1 : rows.indexWhere((i) => identical(i, from));
+    if (at < 0) return delta > 0 ? rows.first : rows.last;
+    return rows[(at + delta).clamp(0, rows.length - 1)];
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final open = _open;
+    final sub = _inSubmenu && open != null;
+    if (key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.arrowUp) {
+      final delta = key == LogicalKeyboardKey.arrowDown ? 1 : -1;
+      setState(() {
+        if (sub) {
+          _subActive = _step(open.submenu, _subActive, delta);
+        } else {
+          _active = _step(widget.items, _active, delta);
+          // Moving off a row closes its submenu, as the mouse does.
+          if (!identical(_open, _active)) _open = null;
+        }
+      });
+      return KeyEventResult.handled;
+    }
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final active = sub ? _subActive : _active;
+    if (key == LogicalKeyboardKey.arrowRight) {
+      if (!sub && active != null && active.submenu.isNotEmpty) {
+        _openSubmenu(active);
+      }
+      return KeyEventResult.handled;
+    }
+    if (sub &&
+        (key == LogicalKeyboardKey.arrowLeft ||
+            key == LogicalKeyboardKey.escape)) {
+      setState(() {
+        _inSubmenu = false;
+        _subActive = null;
+        _open = null;
+      });
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter ||
+        key == LogicalKeyboardKey.space) {
+      if (active == null) return KeyEventResult.handled;
+      if (active.submenu.isNotEmpty) {
+        _openSubmenu(active);
+      } else {
+        Navigator.of(context).pop();
+        active.onSelected?.call();
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dropdown = switch (widget.anchor) {
+      final anchor? => _DropdownPlacement(anchor, MediaQuery.sizeOf(context)),
+      null => null,
+    };
+    return Focus(
+      focusNode: _focus,
+      autofocus: true,
+      onKeyEvent: _onKey,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: CustomSingleChildLayout(
+              delegate: dropdown?.layout ?? _MenuLayout(widget.position),
+              child: _Menu(
+                items: widget.items,
+                header: widget.header,
+                tail: dropdown?.tail,
+                openItem: _open,
+                activeItem: _active,
+                keyOf: _keyOf,
+                onHover: _hover,
+                onLeave: _leave,
+              ),
+            ),
+          ),
+          if ((_open, _anchor) case (final open?, final anchor?))
+            Positioned.fill(
+              child: CustomSingleChildLayout(
+                delegate: _SubmenuLayout(anchor),
+                child: _Menu(
+                  items: open.submenu,
+                  activeItem: _subActive,
+                  keyOf: _keyOf,
+                  onHover: _hoverSub,
+                  onLeave: _leave,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Where a dropdown goes beside its [anchor], decided before layout so
+/// the pointer can be drawn on the first frame.
+class _DropdownPlacement {
+  factory _DropdownPlacement(Rect anchor, Size window) {
+    const margin = _MenuLayout._margin;
+    // Leans away from the nearer window edge, its corner just past the
+    // button's.
+    final right = anchor.center.dx > window.width / 2;
+    final down = anchor.bottom < window.height * 0.6;
+    final edge = right
+        ? (anchor.right + _overhang).clamp(margin, window.width - margin)
+        : (anchor.left - _overhang).clamp(margin, window.width - margin);
+    final x = right ? edge - anchor.center.dx : anchor.center.dx - edge;
+    return _DropdownPlacement._(
+      _AnchoredLayout(anchor: anchor, edge: edge, right: right, down: down),
+      GlassTail(x: x, up: down, fromRight: right),
+    );
+  }
+
+  const _DropdownPlacement._(this.layout, this.tail);
+
+  static const double _overhang = 6;
+
+  final _AnchoredLayout layout;
+  final GlassTail tail;
+}
+
+class _AnchoredLayout extends SingleChildLayoutDelegate {
+  _AnchoredLayout({
+    required this.anchor,
+    required this.edge,
+    required this.right,
+    required this.down,
+  });
+
+  final Rect anchor;
+
+  /// The menu's right edge when [right], else its left one.
+  final double edge;
+  final bool right;
+  final bool down;
+
+  static const double _gap = 2;
+  static const double _margin = _MenuLayout._margin;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints.loose(constraints.biggest)
+          .deflate(const EdgeInsets.all(_margin));
+
+  @override
+  Offset getPositionForChild(Size size, Size child) {
+    final x = right ? edge - child.width : edge;
+    final y = down ? anchor.bottom + _gap : anchor.top - _gap - child.height;
+    return Offset(
+      x.clamp(_margin, size.width - child.width - _margin).toDouble(),
+      y.clamp(_margin, size.height - child.height - _margin).toDouble(),
+    );
+  }
+
+  @override
+  bool shouldRelayout(_AnchoredLayout old) =>
+      old.anchor != anchor ||
+      old.edge != edge ||
+      old.right != right ||
+      old.down != down;
+}
+
 class _MenuLayout extends SingleChildLayoutDelegate {
   _MenuLayout(this.position);
 
   final Offset position;
-  static const double _margin = 8;
+  static const double _margin = MgSpace.m;
 
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
@@ -90,11 +429,77 @@ class _MenuLayout extends SingleChildLayoutDelegate {
   bool shouldRelayout(_MenuLayout old) => old.position != position;
 }
 
+/// Puts a submenu beside its row: to the right, its first item level with
+/// the row, or to the left when the window has no room on the right.
+class _SubmenuLayout extends SingleChildLayoutDelegate {
+  _SubmenuLayout(this.row);
+
+  final Rect row;
+  static const double _margin = MgSpace.m;
+
+  /// The menu's padding, so the submenu's first row lines up with [row].
+  static const double _inset = _Menu.padding;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints.loose(constraints.biggest)
+          .deflate(const EdgeInsets.all(_margin));
+
+  @override
+  Offset getPositionForChild(Size size, Size child) {
+    var x = row.right + _inset;
+    if (x + child.width > size.width - _margin) {
+      x = row.left - _inset - child.width;
+    }
+    final y = row.top - _inset;
+    return Offset(
+      x.clamp(_margin, size.width - child.width - _margin).toDouble(),
+      y.clamp(_margin, size.height - child.height - _margin).toDouble(),
+    );
+  }
+
+  @override
+  bool shouldRelayout(_SubmenuLayout old) => old.row != row;
+}
+
 class _Menu extends StatelessWidget {
-  const _Menu({required this.items, this.header});
+  const _Menu({
+    required this.items,
+    required this.onHover,
+    required this.onLeave,
+    required this.keyOf,
+    this.header,
+    this.openItem,
+    this.activeItem,
+    this.tail,
+  });
+
+  /// A dropdown's pointer at its button.
+  final GlassTail? tail;
 
   final List<MgMenuItem> items;
   final Widget? header;
+
+  /// The item whose submenu is showing; it stays highlighted.
+  final MgMenuItem? openItem;
+
+  /// The highlighted row, by the mouse or the arrow keys.
+  final MgMenuItem? activeItem;
+
+  /// A row was hovered; its rect is in global coordinates.
+  final void Function(MgMenuItem item, Rect row) onHover;
+
+  /// The mouse left a row.
+  final ValueChanged<MgMenuItem> onLeave;
+
+  /// Each row's key, so the keyboard can find its rect.
+  final GlobalKey Function(MgMenuItem item) keyOf;
+
+  /// Keeps the rows' corners concentric with the panel's.
+  static const double padding = radius - _rowRadius + 1;
+
+  /// A touch rounder than other popovers, as Telegram's menus are.
+  static const double radius = MgRadius.card;
 
   @override
   Widget build(BuildContext context) {
@@ -102,19 +507,34 @@ class _Menu extends StatelessWidget {
       type: MaterialType.transparency,
       child: IntrinsicWidth(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 190, maxWidth: 320),
+          constraints: const BoxConstraints(minWidth: 236, maxWidth: 320),
           child: Glass(
-            radius: 12,
-            padding: const EdgeInsets.all(5),
+            dense: true,
+            radius: radius,
+            tail: tail,
+            padding: const EdgeInsets.all(padding),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (header != null) ...[
                   header!,
-                  if (items.isNotEmpty) const _Separator(),
+                  if (_tidy(items).isNotEmpty) const _Separator(),
                 ],
-                for (final item in items) _MenuRow(item: item),
+                for (final item in _tidy(items))
+                  item.isDivider
+                      ? const _Separator()
+                      : _MenuRow(
+                          key: keyOf(item),
+                          item: item,
+                          iconColumn: items.any(
+                            (i) => i.icon != null || i.leading != null,
+                          ),
+                          open: identical(item, openItem),
+                          active: identical(item, activeItem),
+                          onHover: onHover,
+                          onLeave: onLeave,
+                        ),
               ],
             ),
           ),
@@ -124,12 +544,24 @@ class _Menu extends StatelessWidget {
   }
 }
 
+/// [items] without dividers at the ends or two in a row, so callers can
+/// put one between each group whether or not the group has rows.
+List<MgMenuItem> _tidy(List<MgMenuItem> items) {
+  final rows = <MgMenuItem>[];
+  for (final item in items) {
+    if (item.isDivider && (rows.isEmpty || rows.last.isDivider)) continue;
+    rows.add(item);
+  }
+  if (rows.isNotEmpty && rows.last.isDivider) rows.removeLast();
+  return rows;
+}
+
 class _Separator extends StatelessWidget {
   const _Separator();
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+    padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
     child: SizedBox(
       height: 1,
       child: ColoredBox(color: MgColors.of(context).separator),
@@ -138,31 +570,58 @@ class _Separator extends StatelessWidget {
 }
 
 class _MenuRow extends StatefulWidget {
-  const _MenuRow({required this.item});
+  const _MenuRow({
+    super.key,
+    required this.item,
+    required this.open,
+    required this.active,
+    required this.onHover,
+    required this.onLeave,
+    this.iconColumn = false,
+  });
 
   final MgMenuItem item;
+
+  /// Some row of this menu has an icon: reserve its column.
+  final bool iconColumn;
+
+  /// This row's submenu is showing.
+  final bool open;
+
+  /// Highlighted by the mouse or the arrow keys.
+  final bool active;
+  final void Function(MgMenuItem item, Rect row) onHover;
+  final ValueChanged<MgMenuItem> onLeave;
 
   @override
   State<_MenuRow> createState() => _MenuRowState();
 }
 
 class _MenuRowState extends State<_MenuRow> {
-  var _hover = false;
+  Rect _rect() {
+    final box = context.findRenderObject()! as RenderBox;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
 
   void _select() {
+    final item = widget.item;
+    if (item.submenu.isNotEmpty) {
+      widget.onHover(item, _rect());
+      return;
+    }
     Navigator.of(context).pop();
-    widget.item.onSelected();
+    item.onSelected?.call();
   }
 
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
     final item = widget.item;
-    final color = _hover
-        ? c.onAccent
-        : item.destructive
-        ? MgDestructive.color
-        : c.fg;
+    final lit = widget.active || widget.open;
+    // A soft fill under the row, as Telegram does: the text keeps its
+    // colour and the icons stay a quiet grey beside it.
+    final color = item.destructive ? MgDestructive.color : c.fg;
+    final iconColor = item.destructive ? MgDestructive.color : c.fg2;
     return Semantics(
       button: true,
       label: item.label,
@@ -170,25 +629,57 @@ class _MenuRowState extends State<_MenuRow> {
       excludeSemantics: true,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
+        onEnter: (_) => widget.onHover(item, _rect()),
+        onExit: (_) => widget.onLeave(item),
         child: GestureDetector(
           onTap: _select,
           child: Container(
-            height: 26,
+            height: 30,
             padding: const EdgeInsets.symmetric(horizontal: 10),
             alignment: Alignment.centerLeft,
             decoration: BoxDecoration(
-              color: _hover
-                  ? (item.destructive ? MgDestructive.color : c.accent)
-                  : const Color(0x00000000),
-              borderRadius: BorderRadius.circular(6),
+              color: lit ? menuHighlight(c) : const Color(0x00000000),
+              borderRadius: BorderRadius.circular(_rowRadius),
             ),
-            child: Text(
-              item.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: mgTextStyle(c, color: color, height: 1.2),
+            child: Row(
+              children: [
+                if (widget.iconColumn)
+                  SizedBox(
+                    width: 27,
+                    child: item.leading != null
+                        ? Align(
+                            alignment: Alignment.centerLeft,
+                            child: item.leading,
+                          )
+                        : item.icon == null
+                        ? null
+                        : Align(
+                            alignment: Alignment.centerLeft,
+                            child: MgIcon(
+                              item.icon!,
+                              size: 15,
+                              color: iconColor,
+                            ),
+                          ),
+                  ),
+                Expanded(
+                  child: Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: mgTextStyle(
+                      c,
+                      size: MgType.small,
+                      color: color,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+                if (item.submenu.isNotEmpty) ...[
+                  const SizedBox(width: MgSpace.xl),
+                  MgIcon(MgIcons.chevron, size: 11, stroke: 2.4, color: c.fg2),
+                ],
+              ],
             ),
           ),
         ),
@@ -196,6 +687,13 @@ class _MenuRowState extends State<_MenuRow> {
     );
   }
 }
+
+/// The corners of a menu row, concentric with the menu's.
+const double _rowRadius = 7;
+
+/// The fill under a highlighted menu row: a soft tint of the text colour
+/// that reads on light and dark glass alike.
+Color menuHighlight(MgColors c) => c.fg.withValues(alpha: 0.08);
 
 /// The red of destructive actions.
 abstract final class MgDestructive {
@@ -233,10 +731,10 @@ class ReactionBar extends StatelessWidget {
     final c = MgColors.of(context);
     final onMore = this.onMore;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+      padding: const EdgeInsets.fromLTRB(2, 2, 2, 4),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 2,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        spacing: MgSpace.xxs,
         children: [
           for (final emoji in reactions)
             _ReactionButton(
@@ -295,8 +793,9 @@ class ReactionGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
     return Glass(
-      radius: 14,
-      padding: const EdgeInsets.all(6),
+      dense: true,
+      radius: MgRadius.popover,
+      padding: const EdgeInsets.all(MgSpace.s),
       child: SizedBox(
         width: cell * columns,
         child: ConstrainedBox(
@@ -340,14 +839,14 @@ class _ReactionButton extends StatefulWidget {
     required this.fill,
     required this.hover,
     required this.onTap,
-    this.size = 32,
+    this.size = 28,
   });
 
   final String emoji;
 
   /// What an icon drawn in place of the emoji measures, matching the
   /// emoji's glyph.
-  static const double iconSize = 22;
+  static const double iconSize = 19;
 
   /// What the button is for when it has no [emoji], such as "More".
   final String? label;
@@ -398,7 +897,7 @@ class _ReactionButtonState extends State<_ReactionButton> {
                 widget.child ??
                 Text(
                   widget.emoji,
-                  style: const TextStyle(fontSize: 19, height: 1.1),
+                  style: const TextStyle(fontSize: 17, height: 1.1),
                 ),
           ),
         ),
@@ -424,6 +923,7 @@ class ComposerContextBar extends StatelessWidget {
     required this.closeTooltip,
     required this.onClose,
     this.onTap,
+    this.icon = MgIcons.reply,
   });
 
   final String title;
@@ -434,11 +934,15 @@ class ComposerContextBar extends StatelessWidget {
   /// Scrolls to the quoted message.
   final VoidCallback? onTap;
 
+  /// What is happening, in the column of the composer's attach button so
+  /// that the text lines up with the field below.
+  final MgIconData icon;
+
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 4, 0, 2),
+      padding: const EdgeInsets.only(bottom: 5),
       child: Row(
         children: [
           Expanded(
@@ -447,35 +951,48 @@ class ComposerContextBar extends StatelessWidget {
                   ? MouseCursor.defer
                   : SystemMouseCursors.click,
               child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: onTap,
-                child: Container(
-                  padding: const EdgeInsets.only(left: 8),
-                  decoration: BoxDecoration(
-                    border: Border(left: BorderSide(color: c.accent, width: 2)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: mgTextStyle(
-                          c,
-                          weight: FontWeight.w600,
-                          color: c.accent,
-                          height: 1.3,
-                        ),
+                child: Row(
+                  children: [
+                    SizedBox.square(
+                      dimension: MgSendButton.size,
+                      child: Center(
+                        child: MgIcon(icon, size: 20, color: c.accent),
                       ),
-                      Text(
-                        text,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: mgTextStyle(c, color: c.fg2, height: 1.3),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: mgTextStyle(
+                              c,
+                              size: MgType.small,
+                              weight: MgWeight.medium,
+                              color: c.accent,
+                              height: 1.3,
+                            ),
+                          ),
+                          Text(
+                            text,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: mgTextStyle(
+                              c,
+                              size: MgType.small,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -483,7 +1000,9 @@ class ComposerContextBar extends StatelessWidget {
           MgIconButton(
             icon: MgIcons.close,
             tooltip: closeTooltip,
-            iconSize: 14,
+            iconSize: 16,
+            size: MgSendButton.size,
+            quiet: true,
             onPressed: onClose,
           ),
         ],
@@ -506,22 +1025,16 @@ Future<bool?> showMgConfirm(
   bool optionValue = false,
   bool destructive = false,
 }) {
-  return showGeneralDialog<bool>(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: const Color(0x00000000),
-    transitionDuration: Duration.zero,
-    pageBuilder: (context, _, _) => Center(
-      child: _Confirm(
-        title: title,
-        message: message,
-        option: option,
-        optionValue: optionValue,
-        confirmLabel: confirmLabel,
-        cancelLabel: cancelLabel,
-        destructive: destructive,
-      ),
+  return showMgSheet<bool>(
+    context,
+    _Confirm(
+      title: title,
+      message: message,
+      option: option,
+      optionValue: optionValue,
+      confirmLabel: confirmLabel,
+      cancelLabel: cancelLabel,
+      destructive: destructive,
     ),
   );
 }
@@ -567,54 +1080,99 @@ class _ConfirmState extends State<_Confirm> {
         // The checkbox paints on Material.
         child: Material(
           type: MaterialType.transparency,
-          child: SizedBox(
-            width: 300,
-            child: Glass(
-              radius: 14,
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    widget.title,
-                    style: mgTextStyle(c, weight: FontWeight.w600),
+          child: MgAlert(
+            title: widget.title,
+            message: widget.message,
+            option: widget.option == null
+                ? null
+                : MgCheckRow(
+                    label: widget.option!,
+                    value: _checked,
+                    onChanged: (value) => setState(() => _checked = value),
                   ),
-                  if (widget.message != null) ...[
-                    const SizedBox(height: 6),
-                    Text(widget.message!, style: mgTextStyle(c, color: c.fg2)),
-                  ],
-                  if (widget.option != null) ...[
-                    const SizedBox(height: 10),
-                    MgCheckRow(
-                      label: widget.option!,
-                      value: _checked,
-                      onChanged: (value) => setState(() => _checked = value),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      MgDialogButton(
-                        label: widget.cancelLabel,
-                        onTap: () => Navigator.of(context).pop(),
-                      ),
-                      const SizedBox(width: 8),
-                      MgDialogButton(
-                        label: widget.confirmLabel,
-                        filled: true,
-                        color: widget.destructive
-                            ? MgDestructive.color
-                            : c.accent,
-                        onTap: _confirm,
-                      ),
-                    ],
-                  ),
-                ],
+            actions: [
+              MgDialogButton(
+                label: widget.confirmLabel,
+                filled: true,
+                color: widget.destructive ? MgDestructive.color : c.accent,
+                onTap: _confirm,
               ),
-            ),
+              MgDialogButton(
+                label: widget.cancelLabel,
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The shell of an alert, as macOS draws one: the app's mark, a bold
+/// centred title, the message under it, an optional control such as a
+/// checkbox, and the buttons stacked full width, the main one first.
+class MgAlert extends StatelessWidget {
+  const MgAlert({
+    super.key,
+    required this.title,
+    required this.actions,
+    this.message,
+    this.option,
+  });
+
+  final String title;
+  final String? message;
+  final Widget? option;
+
+  /// [MgDialogButton]s, the main action first.
+  final List<Widget> actions;
+
+  static const double width = 260;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = MgColors.of(context);
+    return SizedBox(
+      width: width,
+      child: Glass(
+        dense: true,
+        radius: MgRadius.card,
+        padding: const EdgeInsets.fromLTRB(
+          MgSpace.xl,
+          MgSpace.xxl,
+          MgSpace.xl,
+          MgSpace.xl,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Center(child: AppMark(size: 52)),
+            const SizedBox(height: MgSpace.l),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: mgTextStyle(c, weight: FontWeight.w700),
+            ),
+            if (message != null) ...[
+              const SizedBox(height: MgSpace.xs),
+              Text(
+                message!,
+                textAlign: TextAlign.center,
+                style: mgTextStyle(c, size: MgType.caption, height: 1.35),
+              ),
+            ],
+            if (option != null) ...[
+              const SizedBox(height: MgSpace.l),
+              Center(child: option),
+            ],
+            const SizedBox(height: MgSpace.xl),
+            for (final (i, action) in actions.indexed) ...[
+              if (i > 0) const SizedBox(height: MgSpace.m),
+              action,
+            ],
+          ],
         ),
       ),
     );
@@ -651,11 +1209,11 @@ class MgDialogButton extends StatelessWidget {
           onTap: onTap,
           child: Container(
             height: 28,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            padding: const EdgeInsets.symmetric(horizontal: MgSpace.xl),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: filled ? color : c.field,
-              borderRadius: BorderRadius.circular(7),
+              borderRadius: BorderRadius.circular(MgRadius.control),
             ),
             child: Text(
               label,
@@ -707,7 +1265,7 @@ class MgCheckRow extends StatelessWidget {
                   onChanged: (checked) => onChanged(checked ?? false),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: MgSpace.m),
               Expanded(child: Text(label, style: mgTextStyle(c))),
             ],
           ),
@@ -756,7 +1314,7 @@ class _MgMenuInfoRowState extends State<MgMenuInfoRow> {
     final c = MgColors.of(context);
     final enabled = widget.onSelected != null;
     final lit = _hover && enabled;
-    final color = lit ? c.onAccent : c.fg;
+    final color = c.fg;
     return Semantics(
       button: enabled,
       label: widget.label,
@@ -769,26 +1327,26 @@ class _MgMenuInfoRowState extends State<MgMenuInfoRow> {
         child: GestureDetector(
           onTap: enabled ? _select : null,
           child: Container(
-            height: 26,
+            height: 30,
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
-              color: lit ? c.accent : const Color(0x00000000),
-              borderRadius: BorderRadius.circular(6),
+              color: lit ? menuHighlight(c) : const Color(0x00000000),
+              borderRadius: BorderRadius.circular(_rowRadius),
             ),
             child: Row(
               children: [
-                MgIcon(widget.icon, size: 14, color: color),
-                const SizedBox(width: 8),
+                MgIcon(widget.icon, size: 15, color: c.fg2),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     widget.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: mgTextStyle(c, color: color),
+                    style: mgTextStyle(c, size: MgType.small, color: color),
                   ),
                 ),
                 if (widget.avatars.isNotEmpty) ...[
-                  const SizedBox(width: 10),
+                  const SizedBox(width: MgSpace.ml),
                   SizedBox(
                     width: 18 + 12.0 * (widget.avatars.length - 1),
                     height: 18,
@@ -801,7 +1359,7 @@ class _MgMenuInfoRowState extends State<MgMenuInfoRow> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: lit ? c.accent : c.glassSolid,
+                                  color: c.glassSolid,
                                   width: 1.5,
                                 ),
                               ),
@@ -851,14 +1409,18 @@ class MgPeopleList extends StatelessWidget {
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 220, maxWidth: 300),
       child: Glass(
-        radius: 12,
-        padding: const EdgeInsets.all(5),
+        dense: true,
+        radius: MgRadius.popover,
+        padding: const EdgeInsets.all(MgSpace.xs),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 5, 10, 6),
+              padding: const EdgeInsets.symmetric(
+                horizontal: MgSpace.ml,
+                vertical: MgSpace.s,
+              ),
               child: Text(
                 title,
                 style: mgTextStyle(
@@ -878,8 +1440,8 @@ class MgPeopleList extends StatelessWidget {
                   for (final person in people)
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                        horizontal: MgSpace.ml,
+                        vertical: MgSpace.xs,
                       ),
                       child: Row(
                         children: [
@@ -889,7 +1451,7 @@ class MgPeopleList extends StatelessWidget {
                               child: person.avatar,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: MgSpace.m),
                           Expanded(
                             child: Text(
                               person.name,
@@ -899,7 +1461,7 @@ class MgPeopleList extends StatelessWidget {
                             ),
                           ),
                           if (person.trailing case final trailing?) ...[
-                            const SizedBox(width: 10),
+                            const SizedBox(width: MgSpace.ml),
                             Text(
                               trailing,
                               style: mgTextStyle(

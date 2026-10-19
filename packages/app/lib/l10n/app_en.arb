@@ -42,6 +42,12 @@
   "missingKeysHint": "Build the app with --dart-define-from-file=config/telegram.json. The template is config/telegram.example.json.",
   "startFailedTitle": "Telegram could not start",
   "searchHint": "Search",
+  "sidebarSearchHint": "Search or {shortcut}",
+  "@sidebarSearchHint": {
+    "placeholders": {
+      "shortcut": {"type": "String"}
+    }
+  },
   "folderAll": "All",
   "noChats": "No chats yet",
   "connectionWaitingForNetwork": "Waiting for network…",
@@ -49,6 +55,7 @@
   "connectionConnecting": "Connecting…",
   "connectionUpdating": "Updating…",
   "nothingFound": "Nothing found",
+  "draftLabel": "Draft:",
   "newMessage": "New message",
   "contacts": "Contacts",
   "peopleSearchHint": "Name or username",
@@ -93,6 +100,8 @@
   "voiceSendFailed": "Couldn't send the voice message",
   "videoHoldToRecord": "Hold to record a video message",
   "videoCameraDenied": "Mollygram has no access to the camera.",
+  "videoSwitchCamera": "Switch camera",
+  "senderYou": "You",
   "previewYou": "You: {text}",
   "@previewYou": {
     "placeholders": { "text": { "type": "String" } }
@@ -138,6 +147,15 @@
     "placeholders": { "name": { "type": "String" } }
   },
   "deletedMessage": "Deleted message",
+  "deletedMark": "deleted",
+  "deletedAt": "Deleted {time}",
+  "@deletedAt": {
+    "placeholders": { "time": { "type": "String" } }
+  },
+  "menuEditHistory": "Edit history",
+  "editHistoryTitle": "Edit history",
+  "editHistoryCurrent": "Current version",
+  "editHistoryEmpty": "No earlier versions were kept",
   "loadingMessage": "Loading…",
   "unknownSender": "Unknown",
   "hiddenAccount": "Hidden account",
@@ -175,6 +193,7 @@
   "menuCopyText": "Copy text",
   "menuCopyLink": "Copy link",
   "menuForward": "Forward",
+  "menuChooseChat": "Choose chat…",
   "menuSaveAs": "Save as…",
   "menuSaveToDownloads": "Save to Downloads",
   "menuShowInFinder": "Show in Finder",
@@ -231,7 +250,121 @@
   "forwardSearch": "Search chats",
   "forwardHideSender": "Hide sender names",
   "forwardHideCaptions": "Hide captions",
+  "forwardComment": "Add a comment…",
   "noChatsFound": "No chats found",
+  "statusOnline": "online",
+  "statusJustNow": "last seen just now",
+  "statusMinutesAgo": "{count, plural, one{last seen {count} minute ago} other{last seen {count} minutes ago}}",
+  "@statusMinutesAgo": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statusToday": "last seen today at {time}",
+  "@statusToday": {
+    "placeholders": { "time": { "type": "String" } }
+  },
+  "statusYesterday": "last seen yesterday at {time}",
+  "@statusYesterday": {
+    "placeholders": { "time": { "type": "String" } }
+  },
+  "statusOnDate": "last seen {date}",
+  "@statusOnDate": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "statusRecently": "last seen recently",
+  "statusLastWeek": "last seen within a week",
+  "statusLastMonth": "last seen within a month",
+  "statusLongAgo": "last seen a long time ago",
+  "statusBot": "bot",
+  "statusService": "service notifications",
+  "statusGroup": "group",
+  "statusChannel": "channel",
+  "statusMembers": "{count, plural, one{{count} member} other{{count} members}}",
+  "@statusMembers": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "statusMembersOnline": "{members}, {online} online",
+  "@statusMembersOnline": {
+    "placeholders": { "members": { "type": "String" }, "online": { "type": "String" } }
+  },
+  "statusSubscribers": "{count, plural, one{{count} subscriber} other{{count} subscribers}}",
+  "@statusSubscribers": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "activityTyping": "typing",
+  "activityRecordingVoice": "recording a voice message",
+  "activityRecordingVideoNote": "recording a video message",
+  "activityRecordingVideo": "recording a video",
+  "activitySendingPhoto": "sending a photo",
+  "activitySendingVideo": "sending a video",
+  "activitySendingVoice": "sending a voice message",
+  "activitySendingVideoNote": "sending a video message",
+  "activitySendingFile": "sending a file",
+  "activityChoosingSticker": "choosing a sticker",
+  "activityChoosingLocation": "choosing a location",
+  "activityChoosingContact": "choosing a contact",
+  "activityPlayingGame": "playing a game",
+  "activityWatchingAnimations": "watching an animation",
+  "activityByOne": "{name} is {activity}",
+  "@activityByOne": {
+    "placeholders": { "name": { "type": "String" }, "activity": { "type": "String" } }
+  },
+  "activityByTwo": "{first} and {second} are typing",
+  "@activityByTwo": {
+    "placeholders": { "first": { "type": "String" }, "second": { "type": "String" } }
+  },
+  "activityByMany": "{count, plural, one{{name} and {count} other are typing} other{{name} and {count} others are typing}}",
+  "@activityByMany": {
+    "placeholders": { "name": { "type": "String" }, "count": { "type": "int" } }
+  },
+  "archivedChats": "Archived chats",
+  "noArchivedChats": "No archived chats",
+  "menuPin": "Pin",
+  "menuUnpin": "Unpin",
+  "menuMute": "Mute",
+  "menuUnmute": "Unmute",
+  "muteFor1Hour": "For 1 hour",
+  "muteFor8Hours": "For 8 hours",
+  "muteFor3Days": "For 3 days",
+  "muteForever": "Forever",
+  "menuArchive": "Archive",
+  "menuUnarchive": "Unarchive",
+  "menuMarkRead": "Mark as read",
+  "menuMarkUnread": "Mark as unread",
+  "menuMarkAllRead": "Mark all as read",
+  "menuHideArchive": "Hide archive",
+  "menuShowArchive": "Show archive",
+  "showArchiveRow": "Archive in the chat list",
+  "showArchiveRowHint": "Archived chats stay in the rail and in search while the row is hidden.",
+  "menuClearHistory": "Clear history",
+  "menuDeleteChat": "Delete chat",
+  "menuDeleteAndLeave": "Delete and leave",
+  "menuLeaveGroup": "Leave group",
+  "menuLeaveChannel": "Leave channel",
+  "clearHistoryTitle": "Clear history?",
+  "clearHistoryMessage": "Messages in {name} will be deleted for you.",
+  "@clearHistoryMessage": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "clearAlsoFor": "Also clear for {name}",
+  "@clearAlsoFor": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "clear": "Clear",
+  "deleteChatTitle": "Delete chat?",
+  "deleteChatMessage": "The chat with {name} will be deleted for you.",
+  "@deleteChatMessage": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "leaveTitle": "Leave {name}?",
+  "@leaveTitle": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "leave": "Leave",
+  "deleteAndLeaveTitle": "Delete and leave {name}?",
+  "@deleteAndLeaveTitle": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "chatActionFailed": "Couldn't do that. Try again.",
   "editFailed": "Couldn't save the changes",
   "attachTitle": "{count, plural, one{Send {count} file} other{Send {count} files}}",
   "@attachTitle": {
@@ -241,6 +374,9 @@
   "@attachPhotosTitle": {
     "placeholders": { "count": { "type": "int" } }
   },
+  "attachAddMore": "Add more",
+  "groupAlbum": "Group as an album",
+  "removeFromSend": "Remove",
   "sendAsFiles": "Send as files",
   "hideWithSpoiler": "Hide with a spoiler",
   "viewOnce": "View once",
@@ -631,6 +767,7 @@
   "themeLight": "Light",
   "themeDark": "Dark",
   "accentColor": "Accent color",
+  "accentViolet": "Violet",
   "accentBlue": "Blue",
   "accentIndigo": "Indigo",
   "accentTeal": "Teal",
@@ -703,6 +840,7 @@
   "emojiTab": "Emoji",
   "stickersTab": "Stickers",
   "gifsTab": "GIFs",
+  "customEmojiTab": "Custom",
   "emojiSearch": "Search emoji",
   "recentlyUsed": "Recently used",
   "noEmojiFound": "No emoji found",
@@ -805,6 +943,12 @@
   "searchNoResults": "No results",
   "searchOlder": "Previous result",
   "searchNewer": "Next result",
+  "hashtagThisChat": "This chat",
+  "hashtagMyMessages": "My messages",
+  "hashtagPublicPosts": "Public posts",
+  "hashtagEmpty": "No messages with {tag}",
+  "@hashtagEmpty": { "placeholders": { "tag": { "type": "String" } } },
+  "hashtagFailed": "Could not search",
   "sharedMedia": "Shared media",
   "sharedMediaTab": "Media",
   "sharedFilesTab": "Files",
@@ -922,6 +1066,10 @@
   "savedShowAsMessages": "Show as messages",
   "savedMyNotes": "My notes",
   "savedHiddenAuthor": "Hidden author",
+  "savedTagName": "Name the tag",
+  "savedTagClearName": "Remove the name",
+  "savedTagFailed": "Couldn't load these messages",
+  "savedAllMessages": "All saved messages",
   "deleteSavedTopicConfirm": "Delete everything saved from {name}?",
   "@deleteSavedTopicConfirm": {
     "placeholders": {
@@ -1552,6 +1700,9 @@
   "chatLinkAvailable": "This link is available.",
   "chatBackground": "Chat background",
   "chatBackgroundHint": "Gradients follow the theme. A picture of your own is dimmed a little in the dark theme.",
+  "wallpaperMist": "Mist",
+  "wallpaperSage": "Sage",
+  "wallpaperLinen": "Linen",
   "wallpaperClassic": "Classic",
   "wallpaperOcean": "Ocean",
   "wallpaperLavender": "Lavender",
@@ -1566,6 +1717,9 @@
   "nightScheduleHint": "Switches to the dark theme between these hours, whatever the theme above says.",
   "nightFrom": "From",
   "nightTo": "To",
+  "blurTheme": "Vesper Blur",
+  "blurThemeHint": "A dark, matte window that blurs the desktop behind it. Replaces the theme above while on.",
+  "blurOpacity": "Window opacity",
   "layout": "Layout",
   "mediaCorners": "Media corners",
   "cornerSmall": "Small",
@@ -1594,5 +1748,18 @@
   "downloadsAllPaused": "{count, plural, one{{count} download paused} other{{count} downloads paused}}",
   "@downloadsAllPaused": {"placeholders": {"count": {"type": "int"}}},
   "downloadsFinished": "{count, plural, one{{count} file downloaded} other{{count} files downloaded}}",
-  "@downloadsFinished": {"placeholders": {"count": {"type": "int"}}}
+  "@downloadsFinished": {"placeholders": {"count": {"type": "int"}}},
+  "translateTo": "Translate to {language}",
+  "@translateTo": {"placeholders": {"language": {"type": "String"}}},
+  "translatedFrom": "Translated from {language}",
+  "@translatedFrom": {"placeholders": {"language": {"type": "String"}}},
+  "translated": "Translated",
+  "translating": "Translating…",
+  "translateShowOriginal": "Show original",
+  "translateOptions": "Translation options",
+  "translateChooseLanguage": "Translate to…",
+  "translateSkipLanguage": "Don't translate {language}",
+  "@translateSkipLanguage": {"placeholders": {"language": {"type": "String"}}},
+  "translateHideBar": "Hide",
+  "translateFailed": "Couldn't translate some messages"
 }

@@ -42,8 +42,6 @@ class AccountCard extends ConsumerStatefulWidget {
 }
 
 class _AccountCardState extends ConsumerState<AccountCard> {
-  var _hover = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
@@ -54,52 +52,50 @@ class _AccountCardState extends ConsumerState<AccountCard> {
       button: true,
       selected: selected,
       label: name,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: SettingsSidebarTile(
-            selected: selected,
-            hover: _hover,
-            height: 54,
-            child: Row(
-              children: [
-                SenderAvatar(name: name, size: 38, photo: profile?.photo),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: mgTextStyle(
-                          c,
-                          weight: FontWeight.w600,
-                          color: selected ? c.onAccent : null,
-                          height: 1.3,
-                        ),
+      child: MgPressable(
+        scale: 1,
+        onTap: widget.onTap,
+        builder: (context, state) => SettingsSidebarTile(
+          selected: selected,
+          hover: state.hovered,
+          pressed: state.pressed,
+          height: 64,
+          child: Row(
+            children: [
+              SenderAvatar(name: name, size: 44, photo: profile?.photo),
+              const SizedBox(width: MgSpace.ml),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: mgTextStyle(
+                        c,
+                        size: MgType.title,
+                        weight: MgWeight.medium,
+                        color: selected ? c.onAccent : null,
+                        height: 1.3,
                       ),
-                      Text(
-                        formatPhone(profile?.phoneNumber ?? ''),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: mgTextStyle(
-                          c,
-                          size: MgType.caption,
-                          color: selected ? c.onAccentSecondary : c.fg2,
-                          height: 1.3,
-                        ),
+                    ),
+                    Text(
+                      formatPhone(profile?.phoneNumber ?? ''),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: mgTextStyle(
+                        c,
+                        size: MgType.small,
+                        color: selected ? c.onAccentSecondary : c.fg2,
+                        height: 1.3,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -582,7 +578,7 @@ class _AccountsGroupState extends ConsumerState<AccountsGroup> {
 
 /// One account: avatar (the profile photo for the open one), name and
 /// phone, a check on the open one and Log out on the others.
-class _AccountRow extends ConsumerWidget {
+class _AccountRow extends ConsumerWidget implements SettingsGroupRow {
   const _AccountRow({
     required this.account,
     required this.number,
@@ -764,7 +760,10 @@ class _FieldRowState extends State<_FieldRow> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 40),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(
+              horizontal: settingsInset,
+              vertical: 10,
+            ),
             child: Row(
               children: [
                 if (label != null) ...[

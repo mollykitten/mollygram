@@ -7,6 +7,7 @@ import 'package:mollygram_shell/mollygram_shell.dart';
 import 'package:mollygram_ui_kit/mollygram_ui_kit.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../avatar/peer_avatar.dart';
 import '../commands/command_registry.dart';
 import '../contacts/people_sheet.dart';
 import '../downloads/downloads_sheet.dart';
@@ -14,13 +15,14 @@ import '../links/link_host.dart';
 import '../links/link_router.dart' show workspaceShellKey;
 import '../notifications/notification_service.dart';
 import '../plugins/plugin_commands.dart';
-import '../privacy/ghost_mode_capsule.dart';
 import '../profile/new_chat_sheet.dart';
 import '../profile/peer_info_host.dart';
 import '../secret/secret_chat.dart';
 import '../session/accounts.dart';
 import '../session/connection_status_capsule.dart';
+import '../session/providers.dart';
 import '../settings/appearance.dart';
+import '../settings/preferences.dart';
 import '../settings/settings_window.dart';
 import '../shared_media/message_jump.dart';
 import '../window_drag_area.dart';
@@ -28,12 +30,13 @@ import 'chat_view.dart';
 import 'sidebar.dart';
 import 'workspace.dart';
 
-/// The signed-in window: wallpaper, the floating sidebar and the workspace
-/// (tabs, one or two chat panes, the ⌘K palette). [GlassScope] gives all
-/// glass panels one shared backdrop read.
 /// The macOS runner sends the app menu's items here (AppDelegate.swift).
 const appMenuChannel = MethodChannel('mollygram/app_menu');
 
+/// The signed-in window: the tinted frame with the sidebar lying on it and
+/// the workspace (tabs, one or two chat panes, each on its own [ChatCard],
+/// the ⌘K palette). [GlassScope] gives all glass panels one shared
+/// backdrop read.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -60,6 +63,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       setState(() => _settings = section);
 
   void _closeSettings() => setState(() => _settings = null);
+
+  /// The sidebar's width while its edge is dragged; saved when let go.
+  double? _dragWidth;
+
+  void _resize(double dx) {
+    final width =
+        (_dragWidth ?? ref.read(preferencesProvider).sidebarWidth) + dx;
+    setState(
+      () => _dragWidth = width.clamp(
+        Preferences.minSidebarWidth,
+        Preferences.maxSidebarWidth,
+      ),
+    );
+  }
+
+  void _endResize() {
+    final width = _dragWidth;
+    if (width == null) return;
+    ref
+        .read(preferencesProvider.notifier)
+        .update((p) => p.copyWith(sidebarWidth: width));
+    setState(() => _dragWidth = null);
+  }
+
+  void _resetWidth() => ref
+      .read(preferencesProvider.notifier)
+      .update((p) => p.copyWith(sidebarWidth: Preferences.defaultSidebarWidth));
 
   void _newMessage() => unawaited(showPeopleSheet(context));
 
@@ -181,6 +211,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final directory = ref.watch(chatDirectoryProvider);
     ref.watch(pluginCommandsProvider);
     final keys = _registry.effectiveKeys();
+    final double sidebarWidth =
+        _dragWidth ??
+        ref.watch(preferencesProvider.select((p) => p.sidebarWidth));
     final home = CallbackShortcuts(
       // The shell binds its own shortcuts.
       bindings: {
@@ -190,54 +223,91 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: GlassScope(
         child: Stack(
           children: [
-            const Positioned.fill(child: ChatBackground()),
+            Positioned.fill(
+              child: ColoredBox(color: MgColors.of(context).frame),
+            ),
             Positioned.fill(
               child: WorkspaceShell(
                 key: workspaceShellKey,
                 controller: workspace,
                 directory: directory,
                 commandSource: () => _registry.commands,
+                chatAvatar: (chat, size) => PeerAvatar.chat(
+                  name: chat.title,
+                  size: size,
+                  photo: ref
+                      .read(telegramSessionProvider)
+                      .requireValue
+                      .chatLists
+                      .store
+                      .chat(chat.id)
+                      ?.photo,
+                ),
                 shortcuts: (id) => keys[id]?.activator,
-                sidebar: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: Sidebar(
-                          onSettings: _openSettings,
-                          settingsShortcut: keys['app.settings']?.label,
+                sidebar: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Sidebar(
+                        onSettings: _openSettings,
+                        onPrivacy: () => _openSettings(privacyExtrasSectionId),
+                        onNewMessage: _newMessage,
+                      ),
+                    ),
+                    // Over the title bar row, between the window buttons and
+                    // the actions, while the app is not connected; it takes
+                    // no clicks.
+                    const Positioned(
+                      top: SidebarIsland.topInset,
+                      left: 76,
+                      right: 112,
+                      height: SidebarIsland.titleBarHeight,
+                      child: ConnectionStatusCapsule(),
+                    ),
+                  ],
+                ),
+                sidebarWidth: sidebarWidth,
+                paneBuilder: (context, chat, focused) => Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    0,
+                    SidebarIsland.topInset,
+                    SidebarIsland.topInset,
+                    SidebarIsland.topInset,
+                  ),
+                  child: ChatCard(
+                    background: const ChatCardBackground(),
+                    // Another chat settles in with a short fade and rise.
+                    child: AnimatedSwitcher(
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 200),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      // The default layout loosens the constraints, which
+                      // left the chat no room at all.
+                      layoutBuilder: (current, previous) => Stack(
+                        fit: StackFit.expand,
+                        children: [...previous, ?current],
+                      ),
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween(
+                            begin: const Offset(0, 0.012),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: child,
                         ),
                       ),
-                      // In the island's title bar, between the window
-                      // buttons and the ghost.
-                      const Positioned(
-                        top: 0,
-                        left: 76,
-                        right: 48,
-                        height: SidebarIsland.titleBarHeight,
-                        child: ConnectionStatusCapsule(),
-                      ),
-                      // At the title bar's right end, clear of the
-                      // centered connection status.
-                      Positioned(
-                        top: 0,
-                        right: 12,
-                        height: SidebarIsland.titleBarHeight,
-                        child: GhostModeCapsule(
-                          onTap: () => _openSettings(privacyExtrasSectionId),
-                        ),
-                      ),
-                    ],
+                      child: chat == null
+                          ? const _NoChat(key: ValueKey('none'))
+                          : PeerInfoHost(
+                              key: ValueKey(chat),
+                              chatId: chat,
+                              child: ChatView(chatId: chat, focused: focused),
+                            ),
+                    ),
                   ),
                 ),
-                sidebarWidth: SidebarIsland.width + 16,
-                paneBuilder: (context, chat, focused) => chat == null
-                    ? const _NoChat()
-                    : PeerInfoHost(
-                        key: ValueKey(chat),
-                        chatId: chat,
-                        child: ChatView(chatId: chat),
-                      ),
                 // The chat's view scrolls to the message once it is open.
                 onOpenMessage: (message, target) {
                   ref
@@ -247,6 +317,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 },
               ),
             ),
+            // The sidebar's edge: dragged to resize, double-clicked to
+            // bring back the default width.
+            Positioned(
+              left: sidebarWidth - 5,
+              width: 8,
+              top: SidebarIsland.topInset + SidebarIsland.titleBarHeight,
+              bottom: 0,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.resizeLeftRight,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragUpdate: (d) => _resize(d.delta.dx),
+                  onHorizontalDragEnd: (_) => _endResize(),
+                  onHorizontalDragCancel: _endResize,
+                  onDoubleTap: _resetWidth,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -254,7 +342,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final settings = _settings;
     return SecretScreenProtection(
       child: LinkHost(
-        contentLeft: SidebarIsland.width + 16,
+        contentLeft: sidebarWidth,
         covered: settings != null,
         child: NotificationsHost(
           child: Stack(
@@ -283,7 +371,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 class _NoChat extends StatelessWidget {
-  const _NoChat();
+  const _NoChat({super.key});
 
   @override
   Widget build(BuildContext context) => Stack(
@@ -295,7 +383,7 @@ class _NoChat extends StatelessWidget {
         height: 52,
         child: WindowDragArea(),
       ),
-      Center(child: DatePill(AppLocalizations.of(context).selectChat)),
+      MgEmptyState(AppLocalizations.of(context).selectChat, icon: MgIcons.chat),
     ],
   );
 }

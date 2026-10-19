@@ -76,6 +76,7 @@ class PhotoContent extends StatelessWidget {
           thumbnail: small != null && small != full ? small.photo : null,
           minithumbnail: photo.minithumbnail,
           cacheWidth: (size.width * dpr).round(),
+          kind: MediaDownloadKind.photos,
         ),
       ),
     );
@@ -164,9 +165,16 @@ class AnimationContent extends StatelessWidget {
       child: TdFileBuilder(
         file: animation.animation,
         download: true,
+        kind: MediaDownloadKind.videos,
         builder: (context, file) {
           final path = downloadedPath(file);
-          if (path == null) return cover;
+          if (path == null) {
+            return TapToDownload(
+              file: file,
+              kind: MediaDownloadKind.videos,
+              child: cover,
+            );
+          }
           return LoopingVideo(path: path, placeholder: cover);
         },
       ),
@@ -352,12 +360,16 @@ class VideoNoteContent extends ConsumerStatefulWidget {
     required this.chatId,
     required this.messageId,
     required this.videoNote,
+    this.unread = false,
     this.meta,
   });
 
   final int chatId;
   final int messageId;
   final td.VideoNote videoNote;
+
+  /// Nobody has watched it yet.
+  final bool unread;
 
   /// The time and ticks, drawn over the circle.
   final Widget? meta;
@@ -377,6 +389,8 @@ class _VideoNoteContentState extends ConsumerState<VideoNoteContent> {
   // widget has left the tree.
   late final CirclePlayerPool _pool;
   late final ConversationController _conversations;
+  late final ValueNotifier<ActiveCircle?> _active;
+  late final AudioTrackPlayer _audio;
 
   @override
   void initState() {
@@ -386,6 +400,28 @@ class _VideoNoteContentState extends ConsumerState<VideoNoteContent> {
         .read(telegramSessionProvider)
         .requireValue
         .conversations;
+    _active = ref.read(activeCircleProvider);
+    _audio = ref.read(audioPlayerProvider);
+    _active.addListener(_onActive);
+  }
+
+  bool get _isActive {
+    final active = _active.value;
+    return active != null &&
+        active.chatId == widget.chatId &&
+        active.messageId == widget.messageId;
+  }
+
+  /// The capsule's close button, or another circle taking over, silences
+  /// this one again.
+  void _onActive() {
+    if (!_withSound || _isActive) return;
+    final player = _player;
+    if (player != null) {
+      unawaited(player.setMuted(true));
+      unawaited(player.setRate(1));
+    }
+    if (mounted) setState(() => _withSound = false);
   }
 
   void _attach(String path) {
@@ -400,6 +436,14 @@ class _VideoNoteContentState extends ConsumerState<VideoNoteContent> {
     if (player == null) return;
     if (!_withSound) {
       setState(() => _withSound = true);
+      // One sound at a time: a voice message stops, and the capsule moves
+      // from it to this circle.
+      await _audio.stop();
+      _active.value = (
+        chatId: widget.chatId,
+        messageId: widget.messageId,
+        player: player,
+      );
       await player.setMuted(false);
       await player.play();
       unawaited(
@@ -418,6 +462,13 @@ class _VideoNoteContentState extends ConsumerState<VideoNoteContent> {
 
   @override
   void dispose() {
+    _active.removeListener(_onActive);
+    if (_isActive) {
+      // Listeners rebuild widgets, which is not allowed while the tree is
+      // being taken apart.
+      final active = _active;
+      scheduleMicrotask(() => active.value = null);
+    }
     final player = _player;
     if (player != null) {
       unawaited(_pool.release(player));
@@ -441,6 +492,7 @@ class _VideoNoteContentState extends ConsumerState<VideoNoteContent> {
             TdFileBuilder(
               file: note.video,
               download: true,
+              kind: MediaDownloadKind.videos,
               builder: (context, file) {
                 final path = downloadedPath(file);
                 if (path != null) _attach(path);
@@ -453,8 +505,11 @@ class _VideoNoteContentState extends ConsumerState<VideoNoteContent> {
             ),
             Positioned(
               left: 10,
-              bottom: 12,
-              child: MediaPill(formatDuration(note.duration)),
+              top: 12,
+              child: MediaPill(
+                formatDuration(note.duration),
+                unread: widget.unread,
+              ),
             ),
             if (widget.meta != null)
               Positioned(right: 10, bottom: 12, child: widget.meta!),

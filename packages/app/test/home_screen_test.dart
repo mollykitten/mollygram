@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mollygram/l10n/app_localizations.dart';
+import 'package:mollygram/src/home/chat_view.dart';
 import 'package:mollygram/src/home/home_screen.dart';
 import 'package:mollygram/src/home/workspace.dart';
 import 'package:mollygram/src/home/workspace_storage.dart';
@@ -131,6 +133,26 @@ void main() {
     expect(header('Anna'), findsNothing);
     expect(header('Boris'), findsOneWidget);
     expect(container.read(workspaceControllerProvider).value.focusedChat, 2);
+  });
+
+  testWidgets('without folders the folder bar is gone and the header has '
+      'search and info', (tester) async {
+    await pump(tester);
+    expect(find.byType(FolderSegments), findsNothing);
+    await tester.tap(row('Anna'));
+    await settle(tester);
+    expect(find.byTooltip('Search in chat'), findsOneWidget);
+    expect(find.byTooltip('Info'), findsOneWidget);
+  });
+
+  testWidgets('an open chat fills its card', (tester) async {
+    await pump(tester);
+    await tester.tap(row('Anna'));
+    await settle(tester);
+    final card = tester.getSize(find.byType(ChatCard));
+    final chat = tester.getSize(find.byType(ChatView));
+    expect(chat.width, card.width);
+    expect(chat.height, card.height);
   });
 
   testWidgets('a primary-click opens the chat beside the current one', (
@@ -351,6 +373,199 @@ void main() {
     expect(container.read(workspaceControllerProvider).value.focusedChat, 1);
   });
 
+  testWidgets('a secondary click opens the chat menu and pins', (tester) async {
+    await pump(tester);
+    await tester.tap(row('Anna'), buttons: kSecondaryButton);
+    await settle(tester);
+    for (final label in [
+      'Pin',
+      'Mute',
+      'Mark as unread',
+      'Archive',
+      'Clear history',
+      'Delete chat',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
+      // Every row carries its icon, as Telegram's menus do.
+      final icons = tester.widgetList<MgIcon>(
+        find.descendant(
+          of: find.ancestor(of: find.text(label), matching: find.byType(Row)),
+          matching: find.byType(MgIcon),
+        ),
+      );
+      expect(
+        icons.where((i) => i.icon != MgIcons.chevron),
+        isNotEmpty,
+        reason: label,
+      );
+    }
+
+    // Mute opens its durations beside it.
+    await tester.tap(find.text('Mute'));
+    await settle(tester);
+    expect(find.text('For 1 hour'), findsOneWidget);
+    expect(find.text('Forever'), findsOneWidget);
+
+    await tester.tap(find.text('Pin'));
+    await settle(tester);
+    expect(find.text('Mark as unread'), findsNothing);
+    final pin = json.sent.lastWhere((r) => r['@type'] == 'toggleChatIsPinned');
+    expect(pin['chat_id'], 1);
+    expect(pin['is_pinned'], isTrue);
+  });
+
+  testWidgets('leaving a channel asks first', (tester) async {
+    session.chatLists.store.upsert(
+      ChatListEntry(
+        id: 4,
+        title: 'News',
+        unreadCount: 0,
+        type: ChatType.channel,
+        positions: [
+          ChatListPosition(
+            list: const ChatListLocation.main(),
+            order: 1,
+            isPinned: false,
+          ),
+        ],
+      ),
+    );
+    await pump(tester);
+    await tester.tap(row('News'), buttons: kSecondaryButton);
+    await settle(tester);
+    expect(find.text('Clear history'), findsNothing);
+    await tester.tap(find.text('Leave channel'));
+    await settle(tester);
+    expect(find.text('Leave News?'), findsOneWidget);
+    await tester.tap(find.text('Leave'));
+    await settle(tester);
+    expect(json.sent.where((r) => r['@type'] == 'leaveChat'), hasLength(1));
+  });
+
+  testWidgets('the archive row opens the archive and comes back', (
+    tester,
+  ) async {
+    session.chatLists.store.upsert(
+      ChatListEntry(
+        id: 4,
+        title: 'Dmitry',
+        unreadCount: 2,
+        positions: [
+          ChatListPosition(
+            list: const ChatListLocation.archive(),
+            order: 5,
+            isPinned: false,
+          ),
+        ],
+      ),
+    );
+    await pump(tester);
+    expect(row('Archived chats'), findsOneWidget);
+    expect(row('Dmitry'), findsOneWidget);
+    expect(row('Anna'), findsOneWidget);
+
+    await tester.tap(row('Archived chats'));
+    await settle(tester);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(row('Anna'), findsNothing);
+    expect(row('Dmitry'), findsOneWidget);
+
+    await tester.tap(find.text('Archived chats'));
+    await settle(tester);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(row('Anna'), findsOneWidget);
+  });
+
+  testWidgets('hides the archive row and keeps the archive in reach', (
+    tester,
+  ) async {
+    session.chatLists.store.upsert(
+      ChatListEntry(
+        id: 4,
+        title: 'Dmitry',
+        unreadCount: 2,
+        positions: [
+          ChatListPosition(
+            list: const ChatListLocation.archive(),
+            order: 5,
+            isPinned: false,
+          ),
+        ],
+      ),
+    );
+    await pump(tester);
+    await tester.tap(row('Archived chats'), buttons: kSecondaryButton);
+    await settle(tester);
+    await tester.tap(find.text('Hide archive'));
+    await settle(tester);
+    expect(row('Archived chats'), findsNothing);
+    expect(row('Anna'), findsOneWidget);
+
+    // The rail-less title row keeps a way in.
+    await tester.tap(find.byTooltip('Archived chats'));
+    await settle(tester);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(row('Dmitry'), findsOneWidget);
+    expect(row('Anna'), findsNothing);
+  });
+
+  testWidgets('shows who is typing in the list and the header', (tester) async {
+    await pump(tester);
+    await tester.tap(row('Boris'));
+    await settle(tester);
+    json.push({
+      '@type': 'updateChatAction',
+      'chat_id': 2,
+      'sender_id': {'@type': 'messageSenderUser', 'user_id': 2},
+      'action': {'@type': 'chatActionTyping'},
+    });
+    await settle(tester);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('typing'), findsNWidgets(2));
+
+    json.push({
+      '@type': 'updateChatAction',
+      'chat_id': 2,
+      'sender_id': {'@type': 'messageSenderUser', 'user_id': 2},
+      'action': {'@type': 'chatActionCancel'},
+    });
+    await settle(tester);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('typing'), findsNothing);
+  });
+
+  testWidgets('a forum row names the topic of its last message', (
+    tester,
+  ) async {
+    session.chatLists.store.upsert(
+      ChatListEntry(
+        id: 4,
+        title: 'Sota',
+        type: ChatType.supergroup,
+        unreadCount: 0,
+        lastMessage: const ChatPreview(
+          kind: ChatPreviewKind.document,
+          text: '',
+          date: 1700000000,
+          isOutgoing: true,
+          fileName: 'artifacts.zip',
+          topicId: 5,
+        ),
+        positions: [
+          ChatListPosition(
+            list: const ChatListLocation.main(),
+            order: 200,
+            isPinned: false,
+          ),
+        ],
+      ),
+    );
+    await pump(tester);
+    await settle(tester);
+    expect(row('Changelog'), findsOneWidget);
+    expect(row('You: artifacts.zip'), findsOneWidget);
+  });
+
   test('recent chats put the ones opened here first', () {
     final directory = TelegramChatDirectory(
       session.chatLists.store,
@@ -381,6 +596,9 @@ final class _FakeTdJson implements td.TdJson {
   final _queue = Queue<String>();
   var _nextClientId = 0;
 
+  void push(Map<String, Object?> update) =>
+      _queue.add(jsonEncode({...update, '@client_id': 1}));
+
   @override
   int createClientId() => ++_nextClientId;
 
@@ -406,6 +624,57 @@ final class _FakeTdJson implements td.TdJson {
         'total_count': 1,
         'messages': [_message(41, 3, 'hello there').toJson()],
         'next_offset': '',
+      },
+      'getForumTopic' => {
+        '@type': 'forumTopic',
+        'info': {
+          '@type': 'forumTopicInfo',
+          'chat_id': decoded['chat_id'],
+          'forum_topic_id': decoded['forum_topic_id'],
+          'name': 'Changelog',
+          'icon': {
+            '@type': 'forumTopicIcon',
+            'color': 0x6FB9F0,
+            'custom_emoji_id': 0,
+          },
+          'creation_date': 0,
+          'creator_id': {'@type': 'messageSenderUser', 'user_id': 3},
+          'is_general': false,
+          'is_outgoing': false,
+          'is_closed': false,
+          'is_hidden': false,
+        },
+        'order': 0,
+        'is_pinned': false,
+        'unread_count': 0,
+        'last_read_inbox_message_id': 0,
+        'last_read_outbox_message_id': 0,
+        'unread_mention_count': 0,
+        'unread_reaction_count': 0,
+        'unread_poll_vote_count': 0,
+        'total_count': 0,
+        'notification_settings': {
+          '@type': 'chatNotificationSettings',
+          for (final key in [
+            'use_default_mute_for',
+            'use_default_sound',
+            'use_default_show_preview',
+            'show_preview',
+            'use_default_mute_stories',
+            'mute_stories',
+            'use_default_story_sound',
+            'use_default_show_story_poster',
+            'show_story_poster',
+            'use_default_disable_pinned_message_notifications',
+            'disable_pinned_message_notifications',
+            'use_default_disable_mention_notifications',
+            'disable_mention_notifications',
+          ])
+            key: true,
+          'mute_for': 0,
+          'sound_id': 0,
+          'story_sound_id': 0,
+        },
       },
       'getChatHistory' => {
         '@type': 'messages',

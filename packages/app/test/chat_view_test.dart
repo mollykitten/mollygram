@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mollygram/l10n/app_localizations.dart';
 import 'package:mollygram/src/chat/bot_keyboard.dart';
+import 'package:mollygram/src/chat/load_spinner.dart';
 import 'package:mollygram/src/chat/location_content.dart';
 import 'package:mollygram/src/chat/media_content.dart';
 import 'package:mollygram/src/chat/media_providers.dart';
@@ -94,7 +95,7 @@ void main() {
                 title: 'Team',
                 unreadCount: 0,
                 positions: const [],
-                isGroup: group,
+                type: group ? ChatType.supergroup : ChatType.private,
               ),
             ),
           ),
@@ -224,7 +225,7 @@ void main() {
     );
 
     // A little way up from the bottom, so there is somewhere to return.
-    await tester.drag(find.byType(TimelineView), const Offset(0, 120));
+    await tester.drag(find.byType(TimelineView), const Offset(0, 70));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(ReplyHeader));
     await tester.runAsync(() => Future<void>.delayed(_tick));
@@ -320,6 +321,14 @@ void main() {
       find.descendant(of: bar, matching: find.text('Message 50')),
       findsOneWidget,
     );
+
+    // It is a full-width strip, flush under the header.
+    final card = tester.getRect(find.byType(ChatView));
+    final strip = tester.getRect(bar);
+    expect(strip.left, card.left);
+    expect(strip.right, card.right);
+    expect(strip.top, card.top + ChatHeaderBar.height);
+    expect(strip.height, PinnedBar.height);
 
     // A click goes to it and the bar moves on to the older one.
     await tester.tap(find.byType(PinnedBar));
@@ -608,6 +617,45 @@ void main() {
       'Mine, fixed',
     );
     expect(find.text('Editing'), findsNothing);
+  });
+
+  testWidgets('comes back to where a chat was left', (tester) async {
+    json.chat = [for (var id = 1; id <= 60; id++) id];
+    json.push(_chat(lastRead: 60, unread: 0, last: 60));
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await pump(tester);
+    await tester.pumpAndSettle();
+    final newest = find.textContaining('Message 60', findRichText: true);
+    expect(newest, findsOneWidget);
+
+    // Up a few screens, then away and back.
+    await tester.drag(find.byType(TimelineView), const Offset(0, 1500));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pumpAndSettle();
+    expect(newest, findsNothing);
+    final shown = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((t) => t.text.toPlainText())
+        .where((t) => t.contains('Message '))
+        .toSet();
+    expect(shown, isNotEmpty);
+
+    _shownChat.value = 8;
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+    _shownChat.value = 7;
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pumpAndSettle();
+    expect(newest, findsNothing);
+    final back = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((t) => t.text.toPlainText())
+        .where((t) => t.contains('Message '))
+        .toSet();
+    expect(back.intersection(shown), isNotEmpty);
   });
 
   testWidgets('drops an edit, not the draft, when the chat changes', (
@@ -925,6 +973,55 @@ void main() {
     expect(find.text('Mine'), findsOneWidget);
   });
 
+  testWidgets('scrolls up through a long thread of comments', (tester) async {
+    json
+      ..history = [
+        _message(id: 14, senderId: 2, text: 'Post', comments: 120),
+        ..._history,
+      ]
+      ..commentIds = [for (var id = 41; id <= 160; id++) id];
+    await pump(tester, group: false);
+    await tester.tap(find.text('120 comments'));
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+    // It opens on the newest comment.
+    expect(find.text('Comment 160'), findsOneWidget);
+
+    // Dragging down goes back in time, loading older pages on the way.
+    for (var i = 0; i < 40; i++) {
+      await tester.drag(
+        find.byKey(const ValueKey('commentsThread')),
+        const Offset(0, 600),
+      );
+      await tester.runAsync(() => Future<void>.delayed(_tick));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.text('Comment 41'), findsOneWidget);
+  });
+
+  testWidgets('selects comments from their menu', (tester) async {
+    json.history = [
+      _message(id: 14, senderId: 2, text: 'Post', comments: 2),
+      ..._history,
+    ];
+    await pump(tester, group: false);
+    await tester.tap(find.text('2 comments'));
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+
+    await rightClick(tester, 'First comment');
+    await tester.tap(find.text('Select'));
+    await tester.pump();
+    expect(find.text('1 selected'), findsOneWidget);
+    // The selection bar stands in for the comment composer.
+    expect(find.text('Copy'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(find.text('1 selected'), findsNothing);
+  });
+
   testWidgets('answers a comment from its menu, quoting it', (tester) async {
     json.history = [
       _message(id: 14, senderId: 2, text: 'Post', comments: 2),
@@ -937,8 +1034,7 @@ void main() {
     await tester.pump();
 
     await rightClick(tester, 'First comment');
-    // A comments thread has no selection mode.
-    expect(find.text('Select'), findsNothing);
+    expect(find.text('Select'), findsOneWidget);
     await tester.tap(find.text('Reply'));
     await tester.pump();
     expect(find.byType(ComposerContextBar), findsOneWidget);
@@ -1314,6 +1410,174 @@ void main() {
     expect(find.byTooltip('Back to topics'), findsOneWidget);
   });
 
+  testWidgets('filters Saved Messages by a tag from the bar', (tester) async {
+    json.push({
+      '@type': 'updateOption',
+      'name': 'my_id',
+      'value': {'@type': 'optionValueInteger', 'value': 7},
+    });
+    json.push(
+      _chat(
+        lastRead: 13,
+        unread: 0,
+        last: 13,
+        type: {'@type': 'chatTypePrivate', 'user_id': 7},
+      ),
+    );
+    await pump(tester);
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+    expect(
+      json.sent.lastWhere(
+        (r) => r['@type'] == 'getSavedMessagesTags',
+      )['saved_messages_topic_id'],
+      0,
+    );
+    expect(find.text('Work'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('saved-tag-🔥')));
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+    final search = json.sent.lastWhere(
+      (r) => r['@type'] == 'searchSavedMessages',
+    );
+    expect((search['tag']! as Map)['emoji'], '🔥');
+    expect(search['query'], '');
+    expect(find.text('Tagged two'), findsOneWidget);
+    expect(find.byTooltip('All saved messages'), findsOneWidget);
+    // The bar stays, so another tag is one click away; the capsule names
+    // the tag.
+    expect(find.byKey(const ValueKey('saved-tag-🔥')), findsOneWidget);
+    expect(find.text('Work'), findsNWidgets(2));
+
+    // The same chip again shows every saved message.
+    await tester.tap(find.byKey(const ValueKey('saved-tag-🔥')));
+    await tester.pump();
+    expect(find.text('Tagged two'), findsNothing);
+    expect(find.byTooltip('All saved messages'), findsNothing);
+
+    // A new label arrives with the update.
+    json.push({
+      '@type': 'updateSavedMessagesTags',
+      'saved_messages_topic_id': 0,
+      'tags': {
+        '@type': 'savedMessagesTags',
+        'tags': [
+          {
+            '@type': 'savedMessagesTag',
+            'tag': {'@type': 'reactionTypeEmoji', 'emoji': '🔥'},
+            'label': 'Ideas',
+            'count': 3,
+          },
+        ],
+      },
+    });
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+    expect(find.text('Ideas'), findsOneWidget);
+  });
+
+  testWidgets('shows kept deleted messages and the edit history', (
+    tester,
+  ) async {
+    // A session that keeps what others delete and edit, in a store in
+    // memory.
+    final plain = session;
+    addTearDown(plain.dispose);
+    await tester.runAsync(() async {
+      json = _FakeTdJson();
+      session = await TelegramSession.attach(
+        td.Td.custom(json, td.InlineTdEventSource(json)),
+        parameters: TdlibParameters(
+          api: const TelegramApiConfig(
+            apiId: 12345,
+            apiHash: '0123456789abcdef0123456789abcdef',
+          ),
+          databaseDirectory: '/tmp/mollygram/database',
+          filesDirectory: '/tmp/mollygram/files',
+          databaseEncryptionKey: Uint8List.fromList([1, 2, 3]),
+          systemLanguageCode: 'en',
+          deviceModel: 'Mac',
+          applicationVersion: '0.1.0',
+        ),
+        privacy: const PrivacySettings(
+          keepDeletedMessages: true,
+          keepEditHistory: true,
+        ),
+        openStore: MessageStore.memory,
+      );
+      // Opened here, under real async, so the view finds it ready.
+      await session.capture.store;
+    });
+    session.conversations.store
+      ..setUserName(2, 'Boris')
+      ..setUserName(3, 'Vera');
+    await pump(tester);
+    expect(find.text('Boris again'), findsOneWidget);
+
+    // Boris deletes a message: it stays, marked.
+    json.push({
+      '@type': 'updateDeleteMessages',
+      'chat_id': 7,
+      'message_ids': [11],
+      'is_permanent': true,
+      'from_cache': false,
+    });
+    await tester.runAsync(() async {
+      await Future<void>.delayed(_tick);
+      await session.capture.flush();
+      await Future<void>.delayed(_tick);
+    });
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+    expect(find.text('Boris again'), findsOneWidget);
+    expect(find.text('deleted'), findsOneWidget);
+
+    // Boris edits another: the menu opens its earlier version.
+    json.push({
+      '@type': 'updateMessageContent',
+      'chat_id': 7,
+      'message_id': 10,
+      'new_content': {
+        '@type': 'messageText',
+        'text': {
+          '@type': 'formattedText',
+          'text': 'From Boris, fixed',
+          'entities': <Object?>[],
+        },
+      },
+    });
+    json.push({
+      '@type': 'updateMessageEdited',
+      'chat_id': 7,
+      'message_id': 10,
+      'edit_date': 1700000000,
+    });
+    await tester.runAsync(() async {
+      await Future<void>.delayed(_tick);
+      await session.capture.flush();
+    });
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+    expect(find.text('From Boris, fixed'), findsOneWidget);
+    await rightClick(tester, 'From Boris, fixed');
+    // The store's watch keeps the view busy, so the menu takes a beat more.
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+    await tester.tap(find.text('Edit history'));
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+    expect(find.text('From Boris'), findsOneWidget);
+    expect(find.text('Current version'), findsOneWidget);
+    expect(find.byKey(const ValueKey('version-current')), findsOneWidget);
+  });
+
   testWidgets('puts a switch-to-inline button\'s query in the composer', (
     tester,
   ) async {
@@ -1411,6 +1675,177 @@ void main() {
     await tester.tap(find.byTooltip('Bot keyboard'));
     await tester.pump();
     expect(find.text('Menu'), findsOneWidget);
+  });
+
+  testWidgets('opens the channel a message was forwarded from', (tester) async {
+    json.history = [
+      td.Message.fromJson({
+        ..._message(id: 14, senderId: 2, text: 'Fresh pizza today').toJson(),
+        'forward_info': {
+          '@type': 'messageForwardInfo',
+          'origin': {
+            '@type': 'messageOriginChannel',
+            'chat_id': 55,
+            'message_id': 77,
+            'author_signature': '',
+          },
+          'date': 1760000000,
+        },
+      }),
+      ..._history,
+    ];
+    json.push(_chat(lastRead: 14, unread: 0, last: 14));
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await pump(tester);
+    await tester.pump();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatView)),
+    );
+    expect(container.read(messageJumpProvider), isEmpty);
+    // The name of the source is a link; the message itself is not.
+    // Both the sender and the source are unknown here; the link is the
+    // one that comes first in the tree.
+    final names = find
+        .text(
+          AppLocalizations.of(tester.element(find.byType(ChatView)))
+              .unknownSender,
+        )
+        .first;
+    await tester.tap(names);
+    await tester.pump();
+    expect(container.read(messageJumpProvider)[55]?.messageId, 77);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  /// A chat whose incoming messages are in Russian.
+  List<td.Message> russianHistory() => [
+    _message(id: 13, senderId: 2, text: 'Привет, как дела у вас сегодня?'),
+    _message(id: 12, senderId: 2, text: 'Мы собираемся встретиться завтра'),
+    _message(id: 11, senderId: 2, text: 'Не забудьте взять с собой ключи'),
+    _message(
+      id: 10,
+      senderId: 1,
+      text: 'Спасибо большое за напоминание',
+      outgoing: true,
+    ),
+  ];
+
+  Future<void> openRussianChat(WidgetTester tester) async {
+    json.history = russianHistory();
+    json.push(_chat(lastRead: 13, unread: 0, last: 13));
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await pump(tester);
+    await tester.pump();
+  }
+
+  Future<void> settleTranslation(WidgetTester tester) async {
+    for (var i = 0; i < 4; i++) {
+      await tester.runAsync(() => Future<void>.delayed(_tick));
+      await tester.pump();
+    }
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  testWidgets('translates the whole chat from the bar under the header', (
+    tester,
+  ) async {
+    await openRussianChat(tester);
+    expect(find.text('Translate to English'), findsOneWidget);
+    // Nothing is translated until asked, and no message offers a link.
+    expect(find.textContaining('Привет', findRichText: true), findsOneWidget);
+    expect(find.textContaining('Translate from'), findsNothing);
+    expect(
+      json.sent.where((r) => r['@type'] == 'translateMessageText'),
+      isEmpty,
+    );
+
+    await tester.tap(find.text('Translate to English'));
+    await settleTranslation(tester);
+    expect(find.text('Translated from Russian'), findsOneWidget);
+    expect(find.text('Show original'), findsOneWidget);
+    expect(
+      find.textContaining('Translated 13', findRichText: true),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Привет', findRichText: true), findsNothing);
+    // The user's own message is left as written.
+    expect(find.textContaining('Спасибо', findRichText: true), findsOneWidget);
+    final asked = {
+      for (final r in json.sent.where(
+        (r) => r['@type'] == 'translateMessageText',
+      ))
+        r['message_id']: r['to_language_code'],
+    };
+    expect(asked, {13: 'en', 12: 'en', 11: 'en'});
+
+    await tester.tap(find.text('Show original'));
+    await settleTranslation(tester);
+    expect(find.textContaining('Привет', findRichText: true), findsOneWidget);
+    expect(find.text('Translate to English'), findsOneWidget);
+  });
+
+  testWidgets('hides the translation bar from its menu', (tester) async {
+    await openRussianChat(tester);
+    await tester.tap(find.byTooltip('Translation options'));
+    await tester.pumpAndSettle();
+    expect(find.text('Translate to…'), findsOneWidget);
+    expect(find.text("Don't translate Russian"), findsOneWidget);
+    await tester.tap(find.text('Hide'));
+    await tester.pumpAndSettle();
+    expect(find.text('Translate to English'), findsNothing);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('stops offering a language the user does not want translated', (
+    tester,
+  ) async {
+    await openRussianChat(tester);
+    await tester.tap(find.byTooltip('Translation options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("Don't translate Russian"));
+    await tester.pumpAndSettle();
+    expect(find.text('Translate to English'), findsNothing);
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('makes room under the messages for a bot\'s keyboard', (
+    tester,
+  ) async {
+    json.history = [_replyKeyboardMessage(), ..._history];
+    json.push(_chat(lastRead: 13, unread: 0, last: 13, replyMarkup: 17));
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await pump(tester);
+    await tester.pump();
+    TimelineView timeline() =>
+        tester.widget<TimelineView>(find.byType(TimelineView));
+    final keyboard = tester.getSize(find.byType(ReplyKeyboard));
+    expect(keyboard.height, greaterThan(60));
+    // The room covers everything under the strip's buttons: the keyboard
+    // and the composer.
+    final chatBottom = tester.getBottomLeft(find.byType(ChatView)).dy;
+    final keyboardTop = tester.getTopLeft(find.byType(ReplyKeyboard)).dy;
+    expect(
+      timeline().bottomInset,
+      greaterThanOrEqualTo(chatBottom - keyboardTop),
+    );
+    // The newest message sits above the keyboard, not under it.
+    final newest = tester.getBottomLeft(find.text('Mine'));
+    expect(
+      newest.dy,
+      lessThan(tester.getTopLeft(find.byType(ReplyKeyboard)).dy),
+    );
+
+    // Hidden, the keyboard gives the space back.
+    final withKeyboard = timeline().bottomInset;
+    await tester.tap(find.byTooltip('Bot keyboard'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(ReplyKeyboard), findsNothing);
+    expect(
+      timeline().bottomInset,
+      lessThan(withKeyboard - keyboard.height + 1),
+    );
   });
 
   testWidgets('offers emoji for a :word and stickers for an emoji', (
@@ -1840,7 +2275,12 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text('Forward to chat'), findsOneWidget);
+    // A click ticks the chat; the comment and Send come in.
     await tester.tap(find.text('Saved'));
+    await tester.pumpAndSettle();
+    expect(json.sent.where((r) => r['@type'] == 'forwardMessages'), isEmpty);
+    await tester.enterText(find.byType(TextField).last, 'Look at this');
+    await tester.tap(find.text('Send 1'));
     await tester.runAsync(() => Future<void>.delayed(_tick));
     await tester.pump();
 
@@ -1848,6 +2288,52 @@ void main() {
     expect(forward['chat_id'], 9);
     expect(forward['message_ids'], [12]);
     expect(forward['send_copy'], isFalse);
+    // The comment went first.
+    final comment = json.sent.lastWhere((r) => r['@type'] == 'sendMessage');
+    expect(comment['chat_id'], 9);
+    expect(json.sent.indexOf(comment), lessThan(json.sent.indexOf(forward)));
+  });
+
+  testWidgets('Enter forwards to the highlighted chat at once', (tester) async {
+    await pump(tester);
+
+    await rightClick(tester, 'From Vera');
+    await tester.tap(find.text('Forward'));
+    await tester.pump();
+    await tester.pump();
+    // Nothing ticked: Enter sends to the highlighted first chat.
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+
+    expect(find.text('Forward to chat'), findsNothing);
+    final forward = json.sent.lastWhere((r) => r['@type'] == 'forwardMessages');
+    expect(forward['message_ids'], [12]);
+  });
+
+  testWidgets('forwards from the recent chats in the menu', (tester) async {
+    await pump(tester);
+    // The sidebar keeps the chat list loaded; here it is asked for.
+    ProviderScope.containerOf(tester.element(find.byType(ChatView)))
+        .listen(chatListProvider(const ChatListLocation.main()), (_, _) {});
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+
+    await rightClick(tester, 'From Vera');
+    final forward = find.text('Forward');
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(forward));
+    await mouse.moveTo(tester.getCenter(forward));
+    await tester.pump();
+    expect(find.text('Choose chat…'), findsOneWidget);
+    await tester.tap(find.text('Saved'));
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+
+    expect(find.text('Forward to chat'), findsNothing);
+    final sent = json.sent.lastWhere((r) => r['@type'] == 'forwardMessages');
+    expect(sent['chat_id'], 9);
+    expect(sent['message_ids'], [12]);
   });
 
   testWidgets('selects text with the mouse and replies with it quoted', (
@@ -1934,12 +2420,38 @@ void main() {
     await tester.tap(find.text('Hide sender names'));
     await tester.pump();
     await tester.tap(find.text('Saved'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send 1'));
     await tester.runAsync(() => Future<void>.delayed(_tick));
     await tester.pump();
 
     final forward = json.sent.lastWhere((r) => r['@type'] == 'forwardMessages');
     expect(forward['send_copy'], isTrue);
     expect(forward['remove_caption'], isFalse);
+  });
+
+  testWidgets('the message menu keeps every action, in order', (tester) async {
+    await pump(tester);
+    await rightClick(tester, 'Mine');
+    const labels = [
+      'Reply',
+      'Edit',
+      'Copy text',
+      'Forward',
+      'Pin',
+      'Select',
+      'Report',
+      'Delete',
+    ];
+    for (final label in labels) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    final tops = [
+      for (final label in labels) tester.getTopLeft(find.text(label)).dy,
+    ];
+    for (var i = 1; i < tops.length; i++) {
+      expect(tops[i], greaterThan(tops[i - 1]), reason: labels[i]);
+    }
   });
 
   Future<void> selectTwo(WidgetTester tester) async {
@@ -1963,6 +2475,8 @@ void main() {
     await tester.pump();
     expect(find.byType(SelectionBar), findsNothing);
     await tester.tap(find.text('Saved'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send 1'));
     await tester.runAsync(() => Future<void>.delayed(_tick));
     await tester.pump();
 
@@ -2035,11 +2549,11 @@ void main() {
     await pump(tester);
 
     // The date pill above the first message comes once the start of the
-    // chat is known, a page later.
-    await tester.runAsync(() => Future<void>.delayed(_tick));
-    await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(_tick));
-    await tester.pump();
+    // chat is known, a page later (after one more ask to be sure it is empty).
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(() => Future<void>.delayed(_tick));
+      await tester.pump();
+    }
     // The history is from October 2025.
     await tester.tap(find.byType(DatePill).first);
     await tester.pump();
@@ -2287,6 +2801,48 @@ void main() {
     expect(find.byType(PhotoContent), findsOneWidget);
   });
 
+  testWidgets('a clicked file download goes on the downloads list', (
+    tester,
+  ) async {
+    json.history = [
+      td.Message.fromJson(_document(16, '', downloaded: false)),
+      ..._history,
+    ];
+    await pump(tester);
+
+    await tester.tap(find.text('route_saturday.pdf'));
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+    final added = json.sent.lastWhere(
+      (r) => r['@type'] == 'addFileToDownloads',
+    );
+    expect(added['file_id'], 70);
+    expect(added['chat_id'], 7);
+    expect(added['message_id'], 16);
+  });
+
+  testWidgets('a photo waits for a click when photos do not auto-download', (
+    tester,
+  ) async {
+    json.history = [td.Message.fromJson(_photo(15, idle: true)), ..._history];
+    // What the Data and storage switches set on a real session.
+    session.files.autoDownloadKinds = {MediaDownloadKind.videos};
+    await pump(tester);
+
+    // Nothing was fetched on its own; the preview carries a download button.
+    expect(
+      json.sent.where(
+        (r) => r['@type'] == 'downloadFile' && r['file_id'] == 415,
+      ),
+      isEmpty,
+    );
+    await tester.tap(find.bySemanticsLabel('Download'));
+    await tester.runAsync(() => Future<void>.delayed(_tick));
+    await tester.pump();
+    final download = json.sent.lastWhere((r) => r['@type'] == 'downloadFile');
+    expect(download['file_id'], 415);
+  });
+
   testWidgets('saves a file to the download folder and shows it', (
     tester,
   ) async {
@@ -2450,6 +3006,76 @@ void main() {
     );
   });
 
+  testWidgets('a tapped hashtag lists the messages that carry it', (
+    tester,
+  ) async {
+    json.history = [
+      td.Message.fromJson({
+        ..._message(id: 14, senderId: 2, text: '').toJson(),
+        'content': {
+          '@type': 'messageText',
+          'text': {
+            '@type': 'formattedText',
+            'text': '#news',
+            'entities': [
+              {
+                '@type': 'textEntity',
+                'offset': 0,
+                'length': 5,
+                'type': {'@type': 'textEntityTypeHashtag'},
+              },
+            ],
+          },
+          'link_preview_options': null,
+        },
+      }),
+      ..._history,
+    ];
+    await pump(tester);
+
+    // The sheet sends its search on its first frame, then hears back.
+    Future<void> roundtrip() async {
+      await tester.pump();
+      await tester.runAsync(() => Future<void>.delayed(_tick));
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.text('#news'));
+    await roundtrip();
+    // This chat first: the photos the chat search returns, in the chat.
+    expect(find.text('This chat'), findsOneWidget);
+    final inChat = json.sent.lastWhere(
+      (r) => r['@type'] == 'searchChatMessages',
+    );
+    expect(inChat['query'], '#news');
+    expect(inChat['chat_id'], 7);
+    // Rows name the sender in a group: "Boris: Photo".
+    expect(find.textContaining('Photo'), findsNWidgets(2));
+
+    await tester.tap(find.text('My messages'));
+    await roundtrip();
+    final mine = json.sent.lastWhere((r) => r['@type'] == 'searchMessages');
+    expect(mine['query'], '#news');
+    expect(find.textContaining('Vera: Mine with #news'), findsOneWidget);
+
+    await tester.tap(find.text('Public posts'));
+    await roundtrip();
+    expect(
+      json.sent.lastWhere(
+        (r) => r['@type'] == 'searchPublicMessagesByTag',
+      )['tag'],
+      '#news',
+    );
+    expect(find.text('No messages with #news'), findsOneWidget);
+
+    // A row closes the sheet and asks the chat to show its message.
+    await tester.tap(find.text('My messages'));
+    await roundtrip();
+    await tester.tap(find.textContaining('Mine with #news'));
+    await tester.pumpAndSettle();
+    expect(find.text('My messages'), findsNothing);
+  });
+
   testWidgets('draws a custom emoji as its sticker', (tester) async {
     json.history = [
       td.Message.fromJson({
@@ -2579,6 +3205,43 @@ void main() {
     await tester.pump();
     expect(find.text('Bugs'), findsOneWidget);
     expect(find.text('Repro steps'), findsNothing);
+  });
+
+  testWidgets('asks for the topics again when the first load fails', (
+    tester,
+  ) async {
+    json.failTopics = 1;
+    json.push(
+      _supergroup(98, {'@type': 'chatMemberStatusMember'}, forum: true),
+    );
+    json.push(
+      _chat(
+        lastRead: 60,
+        unread: 0,
+        last: 60,
+        type: {
+          '@type': 'chatTypeSupergroup',
+          'supergroup_id': 98,
+          'is_channel': false,
+        },
+      ),
+    );
+    await pump(tester);
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(() => Future<void>.delayed(_tick));
+      await tester.pump();
+    }
+    expect(find.text('General'), findsNothing);
+    expect(find.byType(LoadSpinner), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 2));
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(() => Future<void>.delayed(_tick));
+      await tester.pump();
+    }
+    expect(find.text('General'), findsOneWidget);
+    expect(find.text('Bugs'), findsOneWidget);
+    expect(json.sent.where((r) => r['@type'] == 'getForumTopics').length, 2);
   });
 
   testWidgets('manages forum topics: closes one and starts a new one', (
@@ -2737,6 +3400,32 @@ void main() {
       'id': 303,
     });
     expect(find.byType(EmojiPanel), findsNothing);
+  });
+
+  testWidgets('the composer has the cursor on opening and takes typing', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tester.pump();
+    final field = find.descendant(
+      of: find.byType(Composer),
+      matching: find.byType(EditableText),
+    );
+    expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
+
+    // Focus somewhere else in the chat, then type: the letter lands in the
+    // composer and the cursor follows it.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    expect(tester.widget<EditableText>(field).focusNode.hasFocus, isFalse);
+    await tester.tapAt(
+      tester.getCenter(find.byType(Composer)) - const Offset(0, 200),
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyH, character: 'h');
+    await tester.pump();
+    expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
+    expect(tester.widget<EditableText>(field).controller.text, 'h');
   });
 }
 
@@ -2929,6 +3618,9 @@ final class _FakeTdJson implements td.TdJson {
   final _queue = Queue<String>();
   final sent = <Map<String, Object?>>[];
   var failSend = false;
+
+  /// How many getForumTopics requests still fail before one succeeds.
+  var failTopics = 0;
   var history = _history;
 
   /// A whole chat from Boris with these ids, paged as TDLib does with
@@ -2940,6 +3632,9 @@ final class _FakeTdJson implements td.TdJson {
 
   /// The pinned messages, newest first.
   var pinned = <int>[];
+
+  /// Ids of the comments under the post, when a test wants a long thread.
+  List<int>? commentIds;
 
   /// Texts of [chat] messages other than "Message N".
   var texts = <int, String>{};
@@ -3092,7 +3787,7 @@ final class _FakeTdJson implements td.TdJson {
         'emojis': <Object?>[],
       },
       'searchChatMessages'
-          when (decoded['filter']! as Map)['@type'] ==
+          when (decoded['filter'] as Map?)?['@type'] ==
               'searchMessagesFilterPinned' =>
         {
           '@type': 'foundChatMessages',
@@ -3113,6 +3808,21 @@ final class _FakeTdJson implements td.TdJson {
         'next_from_message_id': 0,
       },
       'downloadFile' => _stickerFile(decoded['file_id']! as int),
+      'addFileToDownloads' => _stickerFile(decoded['file_id']! as int),
+      'searchMessages' => {
+        '@type': 'foundMessages',
+        'total_count': 1,
+        'next_offset': '',
+        'messages': [
+          _message(id: 31, senderId: 3, text: 'Mine with #news').toJson(),
+        ],
+      },
+      'searchPublicMessagesByTag' => {
+        '@type': 'foundMessages',
+        'total_count': 0,
+        'next_offset': '',
+        'messages': <Object?>[],
+      },
       'joinChat' => {'@type': 'chatJoinResultSuccess'},
       'getChatMessageByDate' => _message(
         id: 11,
@@ -3208,6 +3918,11 @@ final class _FakeTdJson implements td.TdJson {
           'show_above_text': false,
           'instant_view_version': 0,
         },
+      'translateMessageText' => {
+        '@type': 'formattedText',
+        'text': 'Translated ${decoded['message_id']}',
+        'entities': <Object?>[],
+      },
       'getLinkPreview' => {
         '@type': 'error',
         'code': 404,
@@ -3285,6 +4000,26 @@ final class _FakeTdJson implements td.TdJson {
           _message(id: 40, senderId: 2, text: 'Post', chatId: -100).toJson(),
         ],
       },
+      'getMessageThreadHistory' when commentIds != null => () {
+        final from = decoded['from_message_id']! as int;
+        final page =
+            (commentIds!.where((id) => from == 0 || id < from).toList()
+                  ..sort((a, b) => b.compareTo(a)))
+                .take(decoded['limit']! as int);
+        return {
+          '@type': 'messages',
+          'total_count': commentIds!.length,
+          'messages': [
+            for (final id in page)
+              _message(
+                id: id,
+                senderId: 3,
+                text: 'Comment $id',
+                chatId: -100,
+              ).toJson(),
+          ],
+        };
+      }(),
       'getMessageThreadHistory' => {
         '@type': 'messages',
         'total_count': 2,
@@ -3322,6 +4057,11 @@ final class _FakeTdJson implements td.TdJson {
       'getWebAppUrl' => {
         '@type': 'webAppUrl',
         'url': 'https://shop.example/app',
+      },
+      'getForumTopics' when failTopics-- > 0 => {
+        '@type': 'error',
+        'code': 400,
+        'message': 'Chat not found',
       },
       'getForumTopics' => {
         '@type': 'forumTopics',
@@ -3395,6 +4135,26 @@ final class _FakeTdJson implements td.TdJson {
       'getUser' when decoded['user_id'] == 2 => _user(2, 'Boris'),
       'getMe' => _user(7, 'Me', '79990000000'),
       'getUser' when decoded['user_id'] == 7 => _user(7, 'Me'),
+      'getSavedMessagesTags' => {
+        '@type': 'savedMessagesTags',
+        'tags': [
+          {
+            '@type': 'savedMessagesTag',
+            'tag': {'@type': 'reactionTypeEmoji', 'emoji': '🔥'},
+            'label': 'Work',
+            'count': 2,
+          },
+        ],
+      },
+      'searchSavedMessages' => {
+        '@type': 'foundChatMessages',
+        'total_count': 2,
+        'messages': [
+          _message(id: 62, senderId: 7, text: 'Tagged two').toJson(),
+          _message(id: 61, senderId: 7, text: 'Tagged one').toJson(),
+        ],
+        'next_from_message_id': 0,
+      },
       'getSavedMessagesTopicHistory' => {
         '@type': 'messages',
         'total_count': 1,
@@ -3760,7 +4520,11 @@ td.Poll _poll({
   isClosed: false,
 );
 
-Map<String, Object?> _document(int id, String path) => {
+Map<String, Object?> _document(
+  int id,
+  String path, {
+  bool downloaded = true,
+}) => {
   ..._message(id: id, senderId: 2, text: '').toJson(),
   'content': {
     '@type': 'messageDocument',
@@ -3775,7 +4539,7 @@ Map<String, Object?> _document(int id, String path) => {
           'path': path,
           'can_be_downloaded': true,
           'is_downloading_active': false,
-          'is_downloading_completed': true,
+          'is_downloading_completed': downloaded,
         },
       },
     },
@@ -3783,8 +4547,9 @@ Map<String, Object?> _document(int id, String path) => {
   },
 };
 
-/// A photo from Boris as TDLib sends it.
-Map<String, Object?> _photo(int id) => {
+/// A photo from Boris as TDLib sends it; [idle] when its file is neither
+/// downloaded nor downloading.
+Map<String, Object?> _photo(int id, {bool idle = false}) => {
   ..._message(id: id, senderId: 2, text: '').toJson(),
   'content': {
     '@type': 'messagePhoto',
@@ -3794,7 +4559,7 @@ Map<String, Object?> _photo(int id) => {
         {
           '@type': 'photoSize',
           'type': 'x',
-          'photo': _stickerFile(400 + id),
+          'photo': idle ? _idleFile(400 + id) : _stickerFile(400 + id),
           'width': 800,
           'height': 600,
           'progressive_sizes': <Object?>[],
@@ -3889,6 +4654,18 @@ Map<String, Object?> _sticker(int id, String emoji) => {
   'format': {'@type': 'stickerFormatWebp'},
   'full_type': {'@type': 'stickerFullTypeRegular'},
   'sticker': _stickerFile(300 + id),
+};
+
+/// [_stickerFile] before any download was asked for.
+Map<String, Object?> _idleFile(int id) => {
+  ..._stickerFile(id),
+  'local': {
+    '@type': 'localFile',
+    'path': '',
+    'can_be_downloaded': true,
+    'is_downloading_active': false,
+    'is_downloading_completed': false,
+  },
 };
 
 Map<String, Object?> _stickerFile(int id) => {

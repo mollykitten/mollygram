@@ -1,20 +1,20 @@
 import 'dart:async';
+import 'dart:math' as math;
 
-import 'package:flutter/cupertino.dart'
-    show CupertinoDesktopTextSelectionToolbarButton;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../glass/glass.dart';
 import '../icon_button.dart';
 import '../icons.dart';
 import '../theme/colors.dart';
 import '../theme/theme.dart';
+import '../theme/tokens.dart';
 import 'composer_suggestions.dart';
 import 'formatting.dart';
 import 'link_sheet.dart';
 import 'rich_text_controller.dart';
+import 'selection_menu.dart';
 
 /// Localized labels of the [Composer] buttons. The UI kit has no strings
 /// of its own; the app passes them in.
@@ -68,6 +68,7 @@ class Composer extends StatefulWidget {
     this.suggestions = const [],
     this.onSuggestion,
     this.onDismissSuggestions,
+    this.suggestionsLift = 0,
   });
 
   final ComposerLabels labels;
@@ -132,8 +133,9 @@ class Composer extends StatefulWidget {
   final ValueChanged<int>? onSuggestion;
   final VoidCallback? onDismissSuggestions;
 
-  /// The composer is at most 712 px wide, centered in the chat.
-  static const double maxWidth = 712;
+  /// How far above the composer the suggestions float, for a bar the
+  /// parent lays out between them (a bot's reply keyboard).
+  final double suggestionsLift;
 
   @override
   State<Composer> createState() => _ComposerState();
@@ -148,6 +150,7 @@ class _ComposerState extends State<Composer> {
   void initState() {
     super.initState();
     _text.addListener(_changed);
+    _suggestionsPortal.show();
   }
 
   @override
@@ -167,6 +170,10 @@ class _ComposerState extends State<Composer> {
     _own?.dispose();
     super.dispose();
   }
+
+  final _suggestionsPortal = OverlayPortalController();
+  final _link = LayerLink();
+  var _paneWidth = 320.0;
 
   bool _hadDraft = false;
 
@@ -273,69 +280,124 @@ class _ComposerState extends State<Composer> {
   Widget _contextMenu(BuildContext context, EditableTextState state) {
     final labels = widget.labels.format;
     final text = _text;
-    final system = AdaptiveTextSelectionToolbar.getAdaptiveButtons(
-      context,
-      state.contextMenuButtonItems,
-    ).toList();
-    if (labels == null ||
-        text is! RichTextEditingController ||
-        text.selection.isCollapsed) {
-      return AdaptiveTextSelectionToolbar(
-        anchors: state.contextMenuAnchors,
-        children: system,
-      );
-    }
-    void run(VoidCallback action) {
+    final mac = defaultTargetPlatform == TargetPlatform.macOS;
+    final modifier = mac ? '\u2318' : 'Ctrl+';
+    final shift = mac ? '\u21E7' : 'Shift+';
+    void run(VoidCallback? action) {
       ContextMenuController.removeAny();
-      action();
+      action?.call();
     }
 
-    Widget item(String label, VoidCallback action, {bool on = false}) {
-      // Formats already on get a checkmark, as in a macOS menu.
-      final content = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(width: 16, child: on ? const Text('\u2713') : null),
-          Text(label),
-        ],
+    String? shortcut(ContextMenuButtonType type) => switch (type) {
+      ContextMenuButtonType.cut => '${modifier}X',
+      ContextMenuButtonType.copy => '${modifier}C',
+      ContextMenuButtonType.paste => '${modifier}V',
+      ContextMenuButtonType.selectAll => '${modifier}A',
+      _ => null,
+    };
+    final commands = [
+      for (final item in state.contextMenuButtonItems)
+        if (item.type != ContextMenuButtonType.custom)
+          SelectionCommand(
+            label: AdaptiveTextSelectionToolbar.getButtonLabel(context, item),
+            shortcut: shortcut(item.type),
+            onPressed: () => run(item.onPressed),
+          ),
+    ];
+    final rich =
+        labels != null &&
+        text is RichTextEditingController &&
+        !text.selection.isCollapsed;
+    if (!rich) {
+      return SelectionMenu(
+        anchors: state.contextMenuAnchors,
+        formats: const [],
+        commands: commands,
       );
-      void pressed() => run(action);
-      return defaultTargetPlatform == TargetPlatform.macOS
-          ? CupertinoDesktopTextSelectionToolbarButton(
-              onPressed: pressed,
-              child: content,
-            )
-          : DesktopTextSelectionToolbarButton(
-              onPressed: pressed,
-              child: content,
-            );
     }
-
-    Widget toggle(String label, TextFormat format) =>
-        item(label, () => text.toggle(format), on: text.isActive(format));
-    final c = MgColors.of(context);
-    return AdaptiveTextSelectionToolbar(
+    SelectionFormatButton format(
+      TextFormat format,
+      String name,
+      String keys,
+      Widget Function(Color color) glyph,
+    ) => SelectionFormatButton(
+      glyph: glyph,
+      tooltip: '$name  $keys',
+      active: text.isActive(format),
+      onPressed: () => run(() => text.toggle(format)),
+    );
+    Widget letter(
+      String value,
+      Color color, {
+      FontWeight? weight,
+      FontStyle? style,
+      TextDecoration? decoration,
+    }) => selectionLetter(
+      context,
+      value,
+      color,
+      weight: weight,
+      style: style,
+      decoration: decoration,
+    );
+    return SelectionMenu(
       anchors: state.contextMenuAnchors,
-      children: [
-        ...system,
-        Container(
-          height: 1,
-          margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          color: c.separator,
+      formats: [
+        format(
+          TextFormat.bold,
+          labels.bold,
+          '${modifier}B',
+          (c) => letter('B', c, weight: FontWeight.w800),
         ),
-        toggle(labels.bold, TextFormat.bold),
-        toggle(labels.italic, TextFormat.italic),
-        toggle(labels.underline, TextFormat.underline),
-        toggle(labels.strikethrough, TextFormat.strikethrough),
-        toggle(labels.monospace, TextFormat.monospace),
-        toggle(labels.spoiler, TextFormat.spoiler),
-        toggle(labels.quote, TextFormat.quote),
-        item(
-          labels.link,
-          () => unawaited(_askLink(text)),
-          on: text.selectedLink != null,
+        format(
+          TextFormat.italic,
+          labels.italic,
+          '${modifier}I',
+          (c) => letter('I', c, style: FontStyle.italic),
         ),
-        item(labels.plain, text.clearFormatting),
+        format(
+          TextFormat.underline,
+          labels.underline,
+          '${modifier}U',
+          (c) => letter('U', c, decoration: TextDecoration.underline),
+        ),
+        format(
+          TextFormat.strikethrough,
+          labels.strikethrough,
+          '$modifier${shift}X',
+          (c) => letter('S', c, decoration: TextDecoration.lineThrough),
+        ),
+        format(
+          TextFormat.monospace,
+          labels.monospace,
+          '$modifier${shift}M',
+          (c) => selectionIcon(MgIcons.code, c),
+        ),
+        format(
+          TextFormat.spoiler,
+          labels.spoiler,
+          '$modifier${shift}P',
+          (c) => selectionIcon(MgIcons.spoiler, c),
+        ),
+        format(
+          TextFormat.quote,
+          labels.quote,
+          '$modifier$shift.',
+          (c) => selectionIcon(MgIcons.quote, c),
+        ),
+        SelectionFormatButton(
+          glyph: (c) => selectionIcon(MgIcons.link, c),
+          tooltip: '${labels.link}  ${modifier}K',
+          active: text.selectedLink != null,
+          onPressed: () => run(() => unawaited(_askLink(text))),
+        ),
+      ],
+      commands: commands,
+      extra: [
+        SelectionCommand(
+          label: labels.plain,
+          onPressed: () => run(text.clearFormatting),
+        ),
       ],
     );
   }
@@ -404,8 +466,26 @@ class _ComposerState extends State<Composer> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [header, field],
+      children: [
+        Padding(
+          padding: EdgeInsets.only(left: _leadingWidth),
+          child: header,
+        ),
+        field,
+      ],
     );
+  }
+
+  final _leadingKey = GlobalKey();
+  double _leadingWidth = 0;
+
+  void _measureLeading() {
+    final width = widget.leading == null
+        ? 0.0
+        : (_leadingKey.currentContext?.size?.width ?? 0);
+    if (width != _leadingWidth && mounted) {
+      setState(() => _leadingWidth = width);
+    }
   }
 
   @override
@@ -415,15 +495,19 @@ class _ComposerState extends State<Composer> {
     final style = mgTextStyle(c, size: MgType.title);
     final hasDraft = _text.text.trim().isNotEmpty || widget.allowEmpty;
     final replacing = widget.replacement != null;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureLeading());
     final fieldRow = Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        ?widget.leading,
+        if (widget.leading case final leading?)
+          KeyedSubtree(key: _leadingKey, child: leading),
         Builder(
           builder: (context) => MgIconButton(
-            icon: MgIcons.attach,
+            icon: MgIcons.plus,
+            iconSize: 22,
+            size: MgSendButton.rowHeight,
+            quiet: true,
             tooltip: l.attach,
-            iconSize: 18,
             onPressed: switch (widget.onAttachMenu) {
               null => widget.onAttach,
               final onMenu => () {
@@ -433,10 +517,12 @@ class _ComposerState extends State<Composer> {
             },
           ),
         ),
-        const SizedBox(width: 2),
+        const SizedBox(width: 8),
         Expanded(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 32),
+            constraints: const BoxConstraints(
+              minHeight: MgSendButton.rowHeight,
+            ),
             child: Center(
               widthFactor: 1,
               child: Focus(
@@ -453,26 +539,33 @@ class _ComposerState extends State<Composer> {
                   contextMenuBuilder: _contextMenu,
                   decoration: InputDecoration.collapsed(
                     hintText: l.hint,
-                    hintStyle: style.copyWith(color: c.fg2),
+                    hintStyle: style.copyWith(color: c.quiet),
                   ),
                 ),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 2),
+        const SizedBox(width: 8),
         ?widget.extraButton,
         MgIconButton(
           icon: MgIcons.emoji,
+          iconSize: 22,
+          size: MgSendButton.rowHeight,
+          quiet: true,
           tooltip: l.emoji,
-          iconSize: 18,
           onPressed: widget.onEmoji,
         ),
       ],
     );
-    final composer = Glass(
-      radius: 22,
-      padding: const EdgeInsets.fromLTRB(6, 4, 4, 4),
+    // A solid bar across the card's bottom, the card's own continuation
+    // under a hairline.
+    final composer = Container(
+      decoration: BoxDecoration(
+        color: c.solid(c.card),
+        border: Border(top: BorderSide(color: c.separator)),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 7, 12, 7),
       child: _withHeader(
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -512,94 +605,123 @@ class _ComposerState extends State<Composer> {
                 ],
               ),
             ),
-            const SizedBox(width: 2),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 150),
-              switchInCurve: Curves.easeOutBack,
-              switchOutCurve: Curves.easeIn,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: ScaleTransition(
-                  scale: Tween(begin: 0.6, end: 1.0).animate(animation),
-                  child: child,
+            const SizedBox(width: 8),
+            // The square stays put and the glyph morphs: the new button
+            // grows and fades in over the old one, which only fades at
+            // the very end, so there is never a gap in the square.
+            SizedBox(
+              height: MgSendButton.rowHeight,
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : MgMotion.standard,
+                  switchInCurve: MgMotion.enter,
+                  switchOutCurve: Curves.linear,
+                  transitionBuilder: (child, animation) {
+                    final entering =
+                        child.key == ValueKey(hasDraft ? 'send' : 'record');
+                    if (!entering) {
+                      return IgnorePointer(
+                        child: FadeTransition(
+                          opacity: CurvedAnimation(
+                            parent: animation,
+                            curve: const Interval(0, 0.15),
+                          ),
+                          child: child,
+                        ),
+                      );
+                    }
+                    return FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(
+                        scale: Tween(begin: 0.7, end: 1.0).animate(animation),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: hasDraft
+                      ? MgSendButton(
+                          key: const ValueKey('send'),
+                          tooltip: l.send,
+                          onPressed: widget.onSend == null ? null : _send,
+                          onMenu: widget.onSendMenu == null
+                              ? null
+                              : (position) =>
+                                    widget.onSendMenu!(_text.text, position),
+                        )
+                      : KeyedSubtree(
+                          key: const ValueKey('record'),
+                          child:
+                              widget.recordButton ??
+                              MgRecordButton(
+                                tooltip: l.record,
+                                onPressed: widget.onRecord,
+                              ),
+                        ),
                 ),
               ),
-              child: hasDraft
-                  ? MgSendButton(
-                      key: const ValueKey('send'),
-                      tooltip: l.send,
-                      onPressed: widget.onSend == null ? null : _send,
-                      onMenu: widget.onSendMenu == null
-                          ? null
-                          : (position) =>
-                                widget.onSendMenu!(_text.text, position),
-                    )
-                  : KeyedSubtree(
-                      key: const ValueKey('record'),
-                      child:
-                          widget.recordButton ??
-                          MgIconButton(
-                            icon: MgIcons.mic,
-                            tooltip: l.record,
-                            iconSize: 18,
-                            onPressed: widget.onRecord,
-                          ),
-                    ),
             ),
           ],
         ),
       ),
     );
     final suggestions = widget.suggestions;
-    return Center(
-      heightFactor: 1,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: Composer.maxWidth),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // The list grows in over the composer rather than popping up.
-            AnimatedSize(
-              duration: const Duration(milliseconds: 160),
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.bottomLeft,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 160),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween(
-                      begin: const Offset(0, 0.06),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
+    // The list floats over the chat above the composer, so it never moves
+    // the bot keyboard or the messages.
+    return OverlayPortal(
+      controller: _suggestionsPortal,
+      overlayChildBuilder: (_) => CompositedTransformFollower(
+        link: _link,
+        targetAnchor: Alignment.topLeft,
+        followerAnchor: Alignment.bottomLeft,
+        offset: Offset(16, -6 - widget.suggestionsLift),
+        child: Align(
+          alignment: Alignment.bottomLeft,
+          child: suggestions.isEmpty
+              ? const SizedBox.shrink()
+              : TweenAnimationBuilder<double>(
+                  key: const ValueKey('suggestions'),
+                  tween: Tween(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, t, child) => Opacity(
+                    opacity: t,
+                    child: Transform.translate(
+                      offset: Offset(0, 6 * (1 - t)),
+                      child: child,
+                    ),
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: math.max(0, math.min(320, _paneWidth - 32)),
+                    ),
+                    child: ComposerSuggestionList(
+                      suggestions: suggestions,
+                      highlighted: _highlighted.clamp(
+                        0,
+                        suggestions.length - 1,
+                      ),
+                      onPick: (i) => widget.onSuggestion?.call(i),
+                      onHover: (i) => setState(() => _highlighted = i),
+                    ),
                   ),
                 ),
-                child: suggestions.isEmpty
-                    ? const SizedBox(key: ValueKey('none'), width: 0)
-                    : Padding(
-                        key: const ValueKey('suggestions'),
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 320),
-                          child: ComposerSuggestionList(
-                            suggestions: suggestions,
-                            highlighted: _highlighted.clamp(
-                              0,
-                              suggestions.length - 1,
-                            ),
-                            onPick: (i) => widget.onSuggestion?.call(i),
-                            onHover: (i) => setState(() => _highlighted = i),
-                          ),
-                        ),
-                      ),
-              ),
-            ),
-            composer,
-          ],
+        ),
+      ),
+      child: CompositedTransformTarget(
+        link: _link,
+        // The list is no wider than its own pane, whatever the window.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (_paneWidth != constraints.maxWidth) {
+              _paneWidth = constraints.maxWidth;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) setState(() {});
+              });
+            }
+            return composer;
+          },
         ),
       ),
     );

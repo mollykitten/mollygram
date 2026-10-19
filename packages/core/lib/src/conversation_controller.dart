@@ -9,6 +9,7 @@ import 'forum_topics.dart';
 import 'message_thread.dart';
 import 'outgoing_file.dart';
 import 'peer_info.dart';
+import 'saved_tags.dart';
 import 'saved_topics.dart';
 import 'text_edit.dart';
 
@@ -39,6 +40,7 @@ final class ConversationController {
   /// The forum topic lists open on screen, fed every update.
   final _topicLists = <ForumTopicList>{};
   final _savedLists = <SavedTopicList>{};
+  final _savedTagLists = <SavedTags>{};
   int? _myId;
 
   /// The signed-in user's id, once TDLib has said it.
@@ -145,18 +147,23 @@ final class ConversationController {
     if (oldest == null || store.reachedStart(chatId)) return false;
     if (!_loadingOlder.add(chatId)) return false;
     try {
-      final response = await _client.send(
-        td.GetChatHistory(
-          chatId: chatId,
-          fromMessageId: oldest,
-          offset: 0,
-          limit: 50,
-          onlyLocal: false,
-        ),
-      );
-      final added = store.addOlder(chatId, [
-        for (final message in response.messages) ConversationMessage(message),
-      ]);
+      var added = 0;
+      // TDLib can answer a first request with nothing while it fetches the
+      // page from the server; only a second empty answer is the start.
+      for (var attempt = 0; attempt < 2 && added == 0; attempt++) {
+        final response = await _client.send(
+          td.GetChatHistory(
+            chatId: chatId,
+            fromMessageId: oldest,
+            offset: 0,
+            limit: 50,
+            onlyLocal: false,
+          ),
+        );
+        added = store.addOlder(chatId, [
+          for (final message in response.messages) ConversationMessage(message),
+        ]);
+      }
       if (added == 0) store.markReachedStart(chatId);
       _notify();
       return added > 0;
@@ -399,6 +406,12 @@ final class ConversationController {
   Future<void> openContent(int chatId, int messageId) async {
     await _client.send(
       td.OpenMessageContent(chatId: chatId, messageId: messageId),
+    );
+    // With receipts hidden the request never reaches TDLib, so nothing
+    // would tell us the message was played; mark it here the way the
+    // update would, for the timeline and for any open thread.
+    _onUpdate(
+      td.UpdateMessageContentOpened(chatId: chatId, messageId: messageId),
     );
   }
 
@@ -1162,6 +1175,32 @@ final class ConversationController {
     return thread;
   }
 
+  /// The tags on Saved Messages, fed updates until disposed; they still
+  /// have to be loaded.
+  SavedTags openSavedTags() {
+    final tags = SavedTags(_client, onDispose: _savedTagLists.remove);
+    _savedTagLists.add(tags);
+    return tags;
+  }
+
+  /// Opens the Saved Messages that carry [tag] in [chatId] as a thread of
+  /// its own.
+  Future<MessageThread> openSavedTag(int chatId, td.ReactionType tag) async {
+    final thread = MessageThread(
+      _client,
+      store,
+      chatId: chatId,
+      threadId: 0,
+      savedTag: tag,
+      roots: const [],
+      replyCount: 0,
+      onDispose: _threads.remove,
+      sendFiles: sendFiles,
+    );
+    _threads.add(thread);
+    return thread;
+  }
+
   /// Pins or unpins Saved Messages topic [topicId].
   Future<void> setSavedTopicPinned(int topicId, bool pinned) => _client.send(
     td.ToggleSavedMessagesTopicIsPinned(
@@ -1260,6 +1299,13 @@ final class ConversationController {
   Future<void> deleteTopic(int chatId, int forumTopicId) => _client.send(
     td.DeleteForumTopic(chatId: chatId, forumTopicId: forumTopicId),
   );
+
+  /// The name and icon of topic [forumTopicId] of forum [chatId], as the
+  /// chat list shows it beside the forum's last message.
+  Future<td.ForumTopicInfo> topicInfo(int chatId, int forumTopicId) async =>
+      (await _client.send(
+        td.GetForumTopic(chatId: chatId, forumTopicId: forumTopicId),
+      )).info;
 
   /// Topic [forumTopicId] of forum [chatId] as a thread: its messages,
   /// kept current until it is disposed; its first page still has to be
@@ -1830,17 +1876,23 @@ final class ConversationController {
 
   /// The message's text translated into [to] by Telegram, free of Premium
   /// when asked for one message at a time.
-  Future<String> translate(int chatId, int messageId, String to) async {
-    final text = await _client.send(
-      td.TranslateMessageText(
-        chatId: chatId,
-        messageId: messageId,
-        toLanguageCode: to,
-        tone: '',
-      ),
-    );
-    return text.text;
-  }
+  Future<String> translate(int chatId, int messageId, String to) async =>
+      (await translateFormatted(chatId, messageId, to)).text;
+
+  /// Like [translate], keeping the entities, so links and formatting
+  /// survive in the translation.
+  Future<td.FormattedText> translateFormatted(
+    int chatId,
+    int messageId,
+    String to,
+  ) => _client.send(
+    td.TranslateMessageText(
+      chatId: chatId,
+      messageId: messageId,
+      toLanguageCode: to,
+      tone: '',
+    ),
+  );
 
   /// Announces a change, unless the controller is already closed: a reply
   /// can land after the session started shutting down.
@@ -1862,6 +1914,9 @@ final class ConversationController {
     }
     for (final list in _savedLists.toList()) {
       list.handle(object);
+    }
+    for (final tags in _savedTagLists.toList()) {
+      tags.handle(object);
     }
     switch (object) {
       case td.UpdateOption(
@@ -2027,8 +2082,11 @@ final class ConversationController {
       // message comes back the same way, marked as failed.
       case td.UpdateMessageSendSucceeded(:final message, :final oldMessageId):
       case td.UpdateMessageSendFailed(:final message, :final oldMessageId):
+        // The row keeps the key of the temporary message, so the timeline
+        // swaps the ids under the same widgets instead of redrawing it.
+        final pending = store.message(message.chatId, oldMessageId);
         store.remove(message.chatId, [oldMessageId]);
-        _add(message);
+        _add(message, stableId: pending?.keyId ?? oldMessageId);
       case td.UpdateMessageContent(
         :final chatId,
         :final messageId,
@@ -2107,7 +2165,7 @@ final class ConversationController {
     }
   }
 
-  void _add(td.Message message) {
+  void _add(td.Message message, {int? stableId}) {
     final chatId = message.chatId;
     // A scheduled message waits in the chat's scheduled list, not here.
     if (message.schedulingState != null) {
@@ -2122,7 +2180,7 @@ final class ConversationController {
     if (!store.reachedEnd(chatId) && newest != null && message.id > newest) {
       return;
     }
-    store.upsert(ConversationMessage(message));
+    store.upsert(ConversationMessage(message, stableId: stableId));
     _notify();
   }
 

@@ -7,6 +7,7 @@ import 'package:mollygram_core/mollygram_core.dart';
 import 'package:mollygram_ui_kit/mollygram_ui_kit.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../avatar/peer_avatar.dart';
 import '../home/workspace.dart';
 import '../session/providers.dart';
 import 'add_contact_form.dart';
@@ -31,31 +32,7 @@ enum PeopleSheetMode {
 Future<void> showPeopleSheet(
   BuildContext context, {
   PeopleSheetMode mode = PeopleSheetMode.newMessage,
-}) => showGeneralDialog<void>(
-  context: context,
-  barrierDismissible: true,
-  barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-  barrierColor: const Color(0x00000000),
-  transitionDuration: const Duration(milliseconds: 180),
-  transitionBuilder: (context, animation, _, child) {
-    final curved = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-    return FadeTransition(
-      opacity: curved,
-      child: ScaleTransition(
-        scale: Tween(begin: 0.96, end: 1.0).animate(curved),
-        child: child,
-      ),
-    );
-  },
-  pageBuilder: (context, _, _) => Material(
-    type: MaterialType.transparency,
-    child: Center(child: PeopleSheet(mode: mode)),
-  ),
-);
+}) => showMgSheet<void>(context, PeopleSheet(mode: mode));
 
 /// A row of the sheet: a section title, a person or a public chat.
 sealed class _Row {
@@ -422,7 +399,7 @@ class _PeopleSheetState extends ConsumerState<PeopleSheet> {
       width: 360,
       height: 480,
       child: Glass(
-        radius: 14,
+        radius: MgRadius.popover,
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -471,7 +448,7 @@ class _PeopleSheetState extends ConsumerState<PeopleSheet> {
             const SizedBox(height: 8),
             Expanded(
               child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 160),
+                duration: MgMotion.standard,
                 switchInCurve: Curves.easeOut,
                 switchOutCurve: Curves.easeIn,
                 child: body,
@@ -560,7 +537,7 @@ class _PersonRow extends StatelessWidget {
           label: subtitle.isEmpty ? name : '$name, $subtitle',
           excludeSemantics: true,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 90),
+            duration: MgMotion.fast,
             height: 46,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
@@ -569,7 +546,19 @@ class _PersonRow extends StatelessWidget {
             ),
             child: Row(
               children: [
-                MonogramAvatar(name: name, size: 32),
+                switch (row) {
+                  _Person(:final user) => PeerAvatar(
+                    name: name,
+                    size: 32,
+                    photo: user.photo,
+                  ),
+                  _PublicChat(:final chat) => PeerAvatar.chat(
+                    name: name,
+                    size: 32,
+                    photo: chat.photo,
+                  ),
+                  _Section() => MonogramAvatar(name: name, size: 32),
+                },
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(

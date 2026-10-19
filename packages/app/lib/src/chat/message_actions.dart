@@ -8,6 +8,7 @@ import 'package:mollygram_tdlib/mollygram_tdlib.dart' as td;
 import 'package:mollygram_ui_kit/mollygram_ui_kit.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../avatar/peer_avatar.dart';
 import '../home/format.dart';
 import 'custom_emoji.dart';
 import 'describe.dart';
@@ -22,8 +23,11 @@ final class MessageMenuHandlers {
     required this.onReply,
     required this.onEdit,
     required this.onForward,
+    this.recentChats,
+    this.onForwardTo,
     this.onSelect,
     required this.onQuote,
+    this.onEditHistory,
   });
 
   final void Function(ConversationMessage message) onReply;
@@ -34,9 +38,21 @@ final class MessageMenuHandlers {
   final void Function(ConversationMessage message) onEdit;
   final void Function(List<ConversationMessage> messages) onForward;
 
+  /// The chats offered right in the menu under Forward, most recent first;
+  /// without them Forward opens the picker at once.
+  final List<ChatListEntry> Function()? recentChats;
+
+  /// Forwards [messages] to [chatId] without asking again.
+  final void Function(List<ConversationMessage> messages, int chatId)?
+  onForwardTo;
+
   /// Starts selecting messages with this row, or adds it to the selection;
   /// a list without selection, such as a comments thread, leaves it out.
   final void Function(MessageRow row)? onSelect;
+
+  /// Shows the earlier versions of an edited message, kept in the privacy
+  /// store; absent when the edit history is not kept.
+  final void Function(ConversationMessage message)? onEditHistory;
 }
 
 /// The message a command like Reply or Edit acts on in [row]: the one with
@@ -123,6 +139,7 @@ Future<void> showMessageMenu(
     if (properties?.canBeReplied ?? false)
       MgMenuItem(
         label: l10n.menuReply,
+        icon: MgIcons.reply,
         onSelected: () => handlers.onReply(target),
       ),
     // Part of this row's text is selected: it can be quoted.
@@ -131,16 +148,26 @@ Future<void> showMessageMenu(
         row.messages.any((m) => m.id == quote.message.id))
       MgMenuItem(
         label: l10n.menuQuote,
+        icon: MgIcons.quote,
         onSelected: () => handlers.onQuote(quote.message, quote.quote),
       ),
     if ((properties?.canBeEdited ?? false) && _isEditable(target))
       MgMenuItem(
         label: l10n.menuEdit,
+        icon: MgIcons.edit,
         onSelected: () => handlers.onEdit(target),
       ),
+    if (target.editDate > 0 && !target.isDeleted)
+      if (handlers.onEditHistory case final onEditHistory?)
+        MgMenuItem(
+          label: l10n.menuEditHistory,
+          icon: MgIcons.recent,
+          onSelected: () => onEditHistory(target),
+        ),
     if ((properties?.canBeEdited ?? false) && _isOpenPoll(target))
       MgMenuItem(
         label: l10n.menuStopPoll,
+        icon: MgIcons.close,
         onSelected: () => unawaited(
           _confirmStopPoll(
             context,
@@ -150,15 +177,19 @@ Future<void> showMessageMenu(
           ),
         ),
       ),
+    // Groups as in Telegram's menu; empty groups leave no line.
+    const MgMenuItem.divider(),
     if (target.text.isNotEmpty && !protected)
       MgMenuItem(
         label: l10n.menuCopyText,
+        icon: MgIcons.copy,
         onSelected: () =>
             unawaited(Clipboard.setData(ClipboardData(text: target.text))),
       ),
     if (properties?.canGetLink ?? false)
       MgMenuItem(
         label: l10n.menuCopyLink,
+        icon: MgIcons.link,
         onSelected: () => unawaited(
           conversations
               .linkOf(chatId, target.id)
@@ -169,11 +200,14 @@ Future<void> showMessageMenu(
     if (savable != null) ...[
       MgMenuItem(
         label: l10n.menuSaveAs,
+        icon: MgIcons.download,
         onSelected: () => unawaited(
           saveMessageFile(
             context,
             file: savable.file,
             name: savable.name,
+            chatId: chatId,
+            messageId: target.id,
             toDownloads: false,
             isShown: isShown,
           ),
@@ -181,11 +215,14 @@ Future<void> showMessageMenu(
       ),
       MgMenuItem(
         label: l10n.menuSaveToDownloads,
+        icon: MgIcons.downloadAll,
         onSelected: () => unawaited(
           saveMessageFile(
             context,
             file: savable.file,
             name: savable.name,
+            chatId: chatId,
+            messageId: target.id,
             toDownloads: true,
             isShown: isShown,
           ),
@@ -194,6 +231,7 @@ Future<void> showMessageMenu(
       if (savedPath != null && Platform.isMacOS)
         MgMenuItem(
           label: l10n.menuQuickLook,
+          icon: MgIcons.views,
           onSelected: () => unawaited(quickLookFile(savedPath)),
         ),
       if (savedPath != null)
@@ -201,17 +239,45 @@ Future<void> showMessageMenu(
           label: Platform.isMacOS
               ? l10n.menuShowInFinder
               : l10n.menuShowInFolder,
+          icon: MgIcons.file,
           onSelected: () => unawaited(revealFile(savedPath)),
         ),
     ],
+    const MgMenuItem.divider(),
     if (properties?.canBeForwarded ?? false)
       MgMenuItem(
         label: l10n.menuForward,
+        icon: MgIcons.forward,
         onSelected: () => handlers.onForward(row.messages),
+        submenu: [
+          if (handlers.onForwardTo case final forwardTo?)
+            for (final chat
+                in handlers.recentChats?.call() ?? const <ChatListEntry>[])
+              MgMenuItem(
+                label: chat.title,
+                leading: PeerAvatar.chat(
+                  name: chat.title,
+                  size: 18,
+                  photo: chat.photo,
+                ),
+                onSelected: () => forwardTo(row.messages, chat.id),
+              ),
+          if (handlers.onForwardTo != null &&
+              (handlers.recentChats?.call().isNotEmpty ?? false))
+            const MgMenuItem.divider(),
+          if (handlers.onForwardTo != null &&
+              (handlers.recentChats?.call().isNotEmpty ?? false))
+            MgMenuItem(
+              label: l10n.menuChooseChat,
+              icon: MgIcons.search,
+              onSelected: () => handlers.onForward(row.messages),
+            ),
+        ],
       ),
     if (properties?.canBePinned ?? false)
       MgMenuItem(
         label: target.message.isPinned ? l10n.menuUnpin : l10n.menuPin,
+        icon: MgIcons.pin,
         onSelected: () => unawaited(
           conversations
               .setPinned(chatId, target.id, pinned: !target.message.isPinned)
@@ -219,10 +285,16 @@ Future<void> showMessageMenu(
         ),
       ),
     if (handlers.onSelect case final onSelect?)
-      MgMenuItem(label: l10n.menuSelect, onSelected: () => onSelect(row)),
+      MgMenuItem(
+        label: l10n.menuSelect,
+        icon: MgIcons.select,
+        onSelected: () => onSelect(row),
+      ),
+    const MgMenuItem.divider(),
     if (properties?.canReportChat ?? false)
       MgMenuItem(
         label: l10n.menuReport,
+        icon: MgIcons.flag,
         onSelected: () => unawaited(
           reportMessages(
             context,
@@ -236,6 +308,7 @@ Future<void> showMessageMenu(
     if (canDelete)
       MgMenuItem(
         label: l10n.menuDelete,
+        icon: MgIcons.trash,
         destructive: true,
         onSelected: () => unawaited(
           confirmDeleteMessages(
@@ -260,7 +333,11 @@ Future<void> showMessageMenu(
       ),
     ),
   );
-  if (items.isEmpty && reactions.isEmpty && infoRows.isEmpty) return;
+  if (items.every((i) => i.isDivider) &&
+      reactions.isEmpty &&
+      infoRows.isEmpty) {
+    return;
+  }
   void pick(String key) => unawaited(
     conversations
         .toggleReaction(

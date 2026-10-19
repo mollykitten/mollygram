@@ -1,6 +1,15 @@
 import Cocoa
 import FlutterMacOS
 
+/// The blur layer behind Flutter's surface. It only paints: it never takes a
+/// click, a drag or the first-responder role from the Flutter view above it.
+private final class PassiveEffectView: NSVisualEffectView {
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+  override var acceptsFirstResponder: Bool { false }
+  override var mouseDownCanMoveWindow: Bool { false }
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool { false }
+}
+
 class MainFlutterWindow: NSWindow {
   /// Where the window buttons go, in points from the window's top-left
   /// corner. The sidebar island is inset 8 pt and its title bar row is 44 pt
@@ -11,6 +20,12 @@ class MainFlutterWindow: NSWindow {
   private static let buttonsLeft: CGFloat = 23
   private static let buttonsSpacing: CGFloat = 20
 
+  /// The user defaults key under which AppKit keeps the window frame.
+  private static let frameName = "MainWindow"
+
+  /// The blur behind the window while the Vesper Blur theme is on.
+  private var vibrancyView: PassiveEffectView?
+
   private var notifications: NotificationsChannel?
   private var voiceCapture: VoiceCaptureChannel?
   private var videoNoteCapture: VideoNoteCaptureChannel?
@@ -18,6 +33,11 @@ class MainFlutterWindow: NSWindow {
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
+    // The view's own backing is black and shows wherever Flutter's surface
+    // doesn't reach (the rounded corners, a fractional edge pixel); it is
+    // made clear so the window's background, which Dart sets to the
+    // frame's colour, shows there instead.
+    flutterViewController.backgroundColor = .clear
     self.contentViewController = flutterViewController
 
     // Content extends under a transparent title bar: the window buttons stay
@@ -26,8 +46,13 @@ class MainFlutterWindow: NSWindow {
     self.titleVisibility = .hidden
     self.styleMask.insert(.fullSizeContentView)
     self.minSize = NSSize(width: 880, height: 560)
-    self.setContentSize(NSSize(width: 1200, height: 780))
-    self.center()
+    // The size and position come back on the next launch; the defaults are
+    // for the first one only.
+    if !self.setFrameUsingName(Self.frameName) {
+      self.setContentSize(NSSize(width: 1200, height: 780))
+      self.center()
+    }
+    self.setFrameAutosaveName(Self.frameName)
 
     // Flutter takes all mouse events, so Dart asks the window to start a
     // drag when an empty header area is pressed.
@@ -40,6 +65,28 @@ class MainFlutterWindow: NSWindow {
       case "startDrag":
         if let event = NSApp.currentEvent { self.performDrag(with: event) }
         result(nil)
+      case "setBlurred":
+        self.setBlurred(call.arguments as? Bool ?? false)
+        result(nil)
+      case "setBackgroundColor":
+        // The blurred theme keeps the window clear.
+        if self.vibrancyView == nil, let argb = call.arguments as? Int {
+          self.backgroundColor = NSColor(
+            srgbRed: CGFloat((argb >> 16) & 0xFF) / 255,
+            green: CGFloat((argb >> 8) & 0xFF) / 255,
+            blue: CGFloat(argb & 0xFF) / 255,
+            alpha: 1)
+        }
+        result(nil)
+      case "setAppearance":
+        // The app's own theme, not the system's: AppKit draws the window's
+        // outline and shadow for the window's appearance. The blurred theme
+        // keeps its own dark appearance.
+        if self.vibrancyView == nil {
+          let dark = call.arguments as? Bool ?? false
+          self.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        }
+        result(nil)
       case "zoom":
         self.zoom(nil)
         result(nil)
@@ -47,6 +94,33 @@ class MainFlutterWindow: NSWindow {
         // Kept out of screenshots and screen recordings (secret chats).
         let protect = call.arguments as? Bool ?? false
         self.sharingType = protect ? .none : .readOnly
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+
+    // Appearance's "App icon": Dart sends the PNG of the chosen Dock icon,
+    // or asks for the bundled one back. Only the running app's Dock tile
+    // changes; Finder keeps the bundled icon. Registered here, before Dart
+    // runs, so the choice saved last time is applied at launch.
+    let appIcon = FlutterMethodChannel(
+      name: "mollygram/app_icon",
+      binaryMessenger: flutterViewController.engine.binaryMessenger)
+    appIcon.setMethodCallHandler { call, result in
+      switch call.method {
+      case "set":
+        if let data = call.arguments as? FlutterStandardTypedData,
+           let image = NSImage(data: data.data) {
+          NSApp.applicationIconImage = image
+          NSApp.dockTile.display()
+          result(nil)
+        } else {
+          result(FlutterError(code: "bad_image", message: "Not a PNG", details: nil))
+        }
+      case "reset":
+        NSApp.applicationIconImage = nil
+        NSApp.dockTile.display()
         result(nil)
       default:
         result(FlutterMethodNotImplemented)
@@ -68,6 +142,38 @@ class MainFlutterWindow: NSWindow {
 
     super.awakeFromNib()
     placeWindowButtons()
+  }
+
+  /// Turns the blurred, see-through window on or off. On, the window stops
+  /// being opaque and a vibrancy view behind Flutter's surface blurs what
+  /// lies under the window; the dark appearance keeps the material matte
+  /// graphite whatever the system theme is.
+  private func setBlurred(_ on: Bool) {
+    if on {
+      if vibrancyView == nil, let frameView = contentView?.superview,
+         let content = contentView {
+        let effect = PassiveEffectView(frame: frameView.bounds)
+        effect.autoresizingMask = [.width, .height]
+        effect.material = .hudWindow
+        effect.blendingMode = .behindWindow
+        effect.state = .active
+        // Bottom-most in the frame view, so it can never sit over the content.
+        frameView.addSubview(effect, positioned: .below, relativeTo: nil)
+        vibrancyView = effect
+      }
+      appearance = NSAppearance(named: .darkAqua)
+      isOpaque = false
+      backgroundColor = .clear
+      ignoresMouseEvents = false
+      makeFirstResponder(contentViewController?.view)
+    } else {
+      vibrancyView?.removeFromSuperview()
+      vibrancyView = nil
+      appearance = nil
+      isOpaque = true
+      // Dart sends the frame's colour again once the blur is off.
+    }
+    invalidateShadow()
   }
 
   // AppKit puts the buttons back at their default spot whenever it lays out

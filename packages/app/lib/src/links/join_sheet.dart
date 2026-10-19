@@ -6,36 +6,7 @@ import 'package:mollygram_core/mollygram_core.dart';
 import 'package:mollygram_ui_kit/mollygram_ui_kit.dart';
 
 import '../../l10n/app_localizations.dart';
-
-/// Short and eased, like a macOS sheet; the window is not dimmed.
-const _transition = Duration(milliseconds: 160);
-
-Future<T?> _showSheet<T>(BuildContext context, Widget sheet) =>
-    showGeneralDialog<T>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      barrierColor: const Color(0x00000000),
-      transitionDuration: _transition,
-      transitionBuilder: (context, animation, _, child) {
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
-        );
-        return FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            scale: Tween(begin: 0.96, end: 1.0).animate(curved),
-            child: child,
-          ),
-        );
-      },
-      pageBuilder: (context, _, _) => Material(
-        type: MaterialType.transparency,
-        child: Center(child: sheet),
-      ),
-    );
+import '../avatar/peer_avatar.dart';
 
 /// What the user chose in the join sheet: a chat to open, and whether they
 /// joined it or only want to look at it first.
@@ -47,14 +18,14 @@ Future<JoinSheetResult?> showJoinSheet(
   BuildContext context, {
   required ChatJoinPreview preview,
   required Future<JoinResult> Function() join,
-}) => _showSheet<JoinSheetResult>(
+}) => showMgSheet<JoinSheetResult>(
   context,
   JoinSheet(preview: preview, join: join),
 );
 
 /// A one-line notice with a Done button, for links that lead nowhere.
 Future<void> showLinkNoticeSheet(BuildContext context, String message) =>
-    _showSheet<void>(context, _NoticeSheet(message: message));
+    showMgSheet<void>(context, _NoticeSheet(message: message));
 
 class JoinSheet extends StatefulWidget {
   const JoinSheet({super.key, required this.preview, required this.join});
@@ -135,13 +106,19 @@ class _JoinSheetState extends State<JoinSheet> {
           child: SizedBox(
             width: JoinSheet.width,
             child: Glass(
-              radius: 14,
+              radius: MgRadius.popover,
               padding: const EdgeInsets.fromLTRB(20, 22, 20, 14),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(child: MonogramAvatar(name: p.title, size: 64)),
+                  Center(
+                    child: PeerAvatar.chat(
+                      name: p.title,
+                      size: 64,
+                      photo: p.photo,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     sent ? l10n.linkRequestSent : p.title,
@@ -247,7 +224,7 @@ class _NoticeSheet extends StatelessWidget {
         child: SizedBox(
           width: 280,
           child: Glass(
-            radius: 14,
+            radius: MgRadius.popover,
             padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
             child: Column(
               mainAxisSize: MainAxisSize.min,

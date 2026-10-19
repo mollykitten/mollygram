@@ -78,6 +78,17 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 5));
 
     expect(controller.store.messagesFor(7).map((message) => message.id), [40]);
+    // The timeline keeps the row under the temporary id, so it is not
+    // redrawn when the server one arrives, nor when the message changes.
+    expect(controller.store.messagesFor(7).single.keyId, 12);
+    json.push({
+      '@type': 'updateMessageInteractionInfo',
+      'chat_id': 7,
+      'message_id': 40,
+      'interaction_info': null,
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    expect(controller.store.messagesFor(7).single.keyId, 12);
   });
 
   test('applies edits and permanent deletions', () async {
@@ -1058,6 +1069,9 @@ void main() {
     expect(thread.replyCount, 2);
     await thread.load();
     expect(thread.messages.map((m) => m.id), [42, 41, 40]);
+    // A short page is not the end: TDLib may still have older comments.
+    expect(thread.reachedStart, isFalse);
+    await thread.loadOlder();
     expect(thread.reachedStart, isTrue);
 
     json.push({
@@ -1120,6 +1134,80 @@ void main() {
     });
     await Future<void>.delayed(const Duration(milliseconds: 5));
     expect(thread.messages.first.id, 44);
+  });
+
+  test('lists the tags of Saved Messages and opens one', () async {
+    await controller.start();
+    final tags = controller.openSavedTags();
+    await tags.load();
+    expect(
+      json.sent.lastWhere(
+        (r) => r['@type'] == 'getSavedMessagesTags',
+      )['saved_messages_topic_id'],
+      0,
+    );
+    expect(tags.tags.map((t) => t.label), ['Work', '']);
+    json.push({
+      '@type': 'updateSavedMessagesTags',
+      'saved_messages_topic_id': 0,
+      'tags': {
+        '@type': 'savedMessagesTags',
+        'tags': [_tag('🔥', 'Ideas', 3)],
+      },
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    expect(tags.tags.single.label, 'Ideas');
+    await tags.setLabel(const td.ReactionTypeEmoji(emoji: '🔥'), 'Hot');
+    final label = json.sent.lastWhere(
+      (r) => r['@type'] == 'setSavedMessagesTagLabel',
+    );
+    expect(label['label'], 'Hot');
+    expect((label['tag']! as Map)['emoji'], '🔥');
+
+    final thread = await controller.openSavedTag(
+      7,
+      const td.ReactionTypeEmoji(emoji: '🔥'),
+    );
+    expect(thread.isSavedTag, isTrue);
+    expect(thread.isStandalone, isTrue);
+    await thread.load();
+    final search = json.sent.lastWhere(
+      (r) => r['@type'] == 'searchSavedMessages',
+    );
+    expect((search['tag']! as Map)['emoji'], '🔥');
+    expect(search['from_message_id'], 0);
+    expect(thread.messages.map((m) => m.id), [61, 60]);
+    expect(thread.reachedStart, isTrue);
+
+    // A message sent while the tag is open goes to Saved Messages itself.
+    await thread.send('Note');
+    final sent = json.sent.lastWhere((r) => r['@type'] == 'sendMessage');
+    expect(sent['chat_id'], 7);
+    expect(sent['topic_id'], isNull);
+    expect(sent['reply_to'], isNull);
+
+    // Taking the tag off a message drops it from the thread.
+    json.push({
+      '@type': 'updateMessageInteractionInfo',
+      'chat_id': 7,
+      'message_id': 61,
+      'interaction_info': {
+        '@type': 'messageInteractionInfo',
+        'view_count': 0,
+        'forward_count': 0,
+        'reactions': {
+          '@type': 'messageReactions',
+          'reactions': <Object?>[],
+          'are_tags': true,
+          'paid_reactors': <Object?>[],
+          'can_get_added_reactions': false,
+        },
+      },
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    expect(thread.messages.map((m) => m.id), isNot(contains(61)));
+    thread.dispose();
+    tags.dispose();
   });
 
   test('lists who voted for a poll option', () async {
@@ -1450,6 +1538,13 @@ Map<String, Object?> _chat({
     },
     'video_chat': {'@type': 'videoChat'},
   },
+};
+
+Map<String, Object?> _tag(String emoji, String label, int count) => {
+  '@type': 'savedMessagesTag',
+  'tag': {'@type': 'reactionTypeEmoji', 'emoji': emoji},
+  'label': label,
+  'count': count,
 };
 
 Map<String, Object?> _supergroup(int id, Map<String, Object?> status) => {
@@ -1825,10 +1920,13 @@ final class _FakeTdJson implements td.TdJson {
       'getMessageThreadHistory' => {
         '@type': 'messages',
         'total_count': 2,
-        'messages': [
-          _message(id: 42, chatId: -100, text: 'Second').toJson(),
-          _message(id: 41, chatId: -100, text: 'First').toJson(),
-        ],
+        // Only the newest page has comments; an older one is empty.
+        'messages': decoded['from_message_id'] == 0
+            ? [
+                _message(id: 42, chatId: -100, text: 'Second').toJson(),
+                _message(id: 41, chatId: -100, text: 'First').toJson(),
+              ]
+            : <Object?>[],
       },
       'sendMessage' => {
         ..._message(
@@ -1839,6 +1937,19 @@ final class _FakeTdJson implements td.TdJson {
         ).toJson(),
         // A scheduled message comes back marked so.
         'scheduling_state': ?(decoded['options'] as Map?)?['scheduling_state'],
+      },
+      'getSavedMessagesTags' => {
+        '@type': 'savedMessagesTags',
+        'tags': [_tag('🔥', 'Work', 2), _tag('👍', '', 1)],
+      },
+      'searchSavedMessages' => {
+        '@type': 'foundChatMessages',
+        'total_count': 2,
+        'messages': [
+          _message(id: 61, chatId: 7, text: 'Tagged two').toJson(),
+          _message(id: 60, chatId: 7, text: 'Tagged one').toJson(),
+        ],
+        'next_from_message_id': 0,
       },
       'getPollVoters' => {
         '@type': 'pollVoters',

@@ -103,6 +103,7 @@ Future<void> showTopicMenu(
       if (manage)
         MgMenuItem(
           label: topic.isPinned ? l10n.unpinTopic : l10n.pinTopic,
+          icon: topic.isPinned ? MgIcons.unpin : MgIcons.pinOutline,
           onSelected: () => unawaited(
             run(
               () => conversations.setTopicPinned(chatId, id, !topic.isPinned),
@@ -112,6 +113,7 @@ Future<void> showTopicMenu(
       if (!topic.info.isGeneral)
         MgMenuItem(
           label: topic.info.isClosed ? l10n.reopenTopic : l10n.closeTopic,
+          icon: topic.info.isClosed ? MgIcons.lockOpen : MgIcons.lock,
           onSelected: () => unawaited(
             run(
               () => conversations.setTopicClosed(
@@ -124,12 +126,14 @@ Future<void> showTopicMenu(
         ),
       MgMenuItem(
         label: l10n.editTopic,
+        icon: MgIcons.edit,
         onSelected: () =>
             unawaited(showTopicSheet(context, chatId, topic: topic.info)),
       ),
       if (manage && !topic.info.isGeneral)
         MgMenuItem(
           label: l10n.deleteTopic,
+          icon: MgIcons.trash,
           destructive: true,
           onSelected: () => unawaited(() async {
             final confirmed = await showMgConfirm(
@@ -188,8 +192,8 @@ class _NewTopicRowState extends State<_NewTopicRow> {
             child: Row(
               children: [
                 Container(
-                  width: _TopicIcon.size,
-                  height: _TopicIcon.size,
+                  width: TopicIcon.defaultSize,
+                  height: TopicIcon.defaultSize,
                   decoration: BoxDecoration(
                     color: c.accent.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(10),
@@ -278,7 +282,7 @@ class _TopicRowState extends State<_TopicRow> {
             ),
             child: Row(
               children: [
-                _TopicIcon(info: info),
+                TopicIcon(info: info),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -370,12 +374,13 @@ class _TopicRowState extends State<_TopicRow> {
 /// A topic's icon: its custom emoji, or a rounded tile in the topic's
 /// colour with the first letter of its name, as the official clients draw
 /// topics without one.
-class _TopicIcon extends StatelessWidget {
-  const _TopicIcon({required this.info});
+class TopicIcon extends StatelessWidget {
+  const TopicIcon({super.key, required this.info, this.size = defaultSize});
+
+  static const double defaultSize = 36;
 
   final td.ForumTopicInfo info;
-
-  static const double size = 36;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -384,7 +389,10 @@ class _TopicIcon extends StatelessWidget {
       return SizedBox.square(
         dimension: size,
         child: Center(
-          child: CustomEmojiIcon(id: info.icon.customEmojiId, size: 28),
+          child: CustomEmojiIcon(
+            id: info.icon.customEmojiId,
+            size: size * 7 / 9,
+          ),
         ),
       );
     }
@@ -401,14 +409,14 @@ class _TopicIcon extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(size * 5 / 18),
       ),
       alignment: Alignment.center,
       child: Text(
         letter,
         style: mgTextStyle(
           c,
-          size: MgType.title,
+          size: size < 24 ? size * 0.62 : MgType.title,
           weight: FontWeight.w600,
           color: color,
         ),

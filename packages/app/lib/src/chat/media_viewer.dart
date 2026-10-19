@@ -373,216 +373,236 @@ class _MediaViewerState extends State<_MediaViewer> {
       onZoom: (zoomed) => _zoomed = zoomed,
     );
 
-    return Focus(
-      focusNode: _focus,
-      onKeyEvent: _onKey,
-      child: MouseRegion(
-        onHover: (_) => _wake(),
-        child: Listener(
-          onPointerPanZoomStart: _swipeStart,
-          onPointerPanZoomUpdate: _swipeUpdate,
-          onPointerPanZoomEnd: _swipeEnd,
-          child: Stack(
-            children: [
-              // The backdrop: a click on it closes the viewer.
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _close,
-                  child: FadeTransition(
-                    opacity: curved,
-                    child: const ColoredBox(color: Color(0xF0080809)),
-                  ),
-                ),
-              ),
-              Positioned.fill(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    72,
-                    68,
-                    72,
-                    (isVideo ? 76 : 24) +
-                        (hasCaption ? 56 : 0) +
-                        (entries.length > 1 ? _Thumbnails.height + 12 : 0),
-                  ),
-                  child: ScaleTransition(
-                    scale: Tween(begin: 0.94, end: 1.0).animate(curved),
+    // The route has no Material above it: without a text style of its
+    // own, every label would come out large and underlined.
+    return DefaultTextStyle(
+      style: const TextStyle(
+        color: _onDark,
+        fontSize: MgType.body,
+        height: 1.35,
+        decoration: TextDecoration.none,
+      ),
+      child: Focus(
+        focusNode: _focus,
+        onKeyEvent: _onKey,
+        child: MouseRegion(
+          onHover: (_) => _wake(),
+          child: Listener(
+            onPointerPanZoomStart: _swipeStart,
+            onPointerPanZoomUpdate: _swipeUpdate,
+            onPointerPanZoomEnd: _swipeEnd,
+            child: Stack(
+              children: [
+                // The backdrop: a click on it closes the viewer.
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _close,
                     child: FadeTransition(
                       opacity: curved,
-                      child: _Rotated(
-                        quarterTurns: _quarterTurns,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 220),
-                          switchInCurve: Curves.easeOutCubic,
-                          switchOutCurve: Curves.easeInCubic,
-                          transitionBuilder: (child, animation) {
-                            final incoming = child.key == ValueKey(key);
-                            final offset = Tween(
-                              begin: Offset(
-                                0.06 * _direction * (incoming ? 1 : -1),
-                                0,
-                              ),
-                              end: Offset.zero,
-                            ).animate(animation);
-                            return FadeTransition(
-                              opacity: animation,
-                              child: SlideTransition(
-                                position: offset,
-                                child: child,
-                              ),
-                            );
-                          },
-                          child: page,
+                      child: const ColoredBox(color: Color(0xF0080809)),
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      72,
+                      68,
+                      72,
+                      (isVideo ? 76 : 24) +
+                          (hasCaption ? 56 : 0) +
+                          (entries.length > 1 ? _Thumbnails.height + 12 : 0),
+                    ),
+                    child: ScaleTransition(
+                      scale: Tween(begin: 0.94, end: 1.0).animate(curved),
+                      child: FadeTransition(
+                        opacity: curved,
+                        child: _Rotated(
+                          quarterTurns: _quarterTurns,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            transitionBuilder: (child, animation) {
+                              final incoming = child.key == ValueKey(key);
+                              final offset = Tween(
+                                begin: Offset(
+                                  0.06 * _direction * (incoming ? 1 : -1),
+                                  0,
+                                ),
+                                end: Offset.zero,
+                              ).animate(animation);
+                              return FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: offset,
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: page,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              _Chrome(
-                visible: _chrome,
-                animation: curved,
-                child: Stack(
-                  children: [
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: _TopBar(
-                        message: message,
-                        store: widget.store,
-                        title: widget.title,
-                        date: entry.date,
-                        counter: entries.length > 1
-                            ? l10n.mediaCounter(
-                                _gallery.index + 1,
-                                entries.length,
-                              )
-                            : null,
-                        actions: [
-                          if (_rotatable)
-                            _BarButton(
-                              icon: _rotateIcon,
-                              label: l10n.mediaRotate,
-                              onTap: _rotate,
-                            ),
-                          if (_canSave && entry.item is PhotoItem)
-                            _BarButton(
-                              icon: MgIcons.copy,
-                              label: l10n.mediaCopy,
-                              onTap: () => unawaited(_copy()),
-                            ),
-                          if (_canSave)
-                            _BarButton(
-                              icon: MgIcons.download,
-                              label: l10n.mediaSave,
-                              onTap: () => unawaited(_save()),
-                            ),
-                          if (_canSave &&
-                              message != null &&
-                              widget.onForward != null)
-                            _BarButton(
-                              icon: MgIcons.forward,
-                              label: l10n.menuForward,
-                              onTap: () => widget.onForward!(message),
-                            ),
-                          if (message != null && widget.onShowInChat != null)
-                            _BarButton(
-                              icon: MgIcons.chat,
-                              label: l10n.showInChat,
-                              onTap: () => widget.onShowInChat!(message),
-                            ),
-                          if (message != null && widget.onDelete != null)
-                            _BarButton(
-                              icon: MgIcons.trash,
-                              label: l10n.menuDelete,
-                              onTap: () => unawaited(_delete()),
-                            ),
-                          _BarButton(
-                            icon: MgIcons.close,
-                            label: l10n.close,
-                            onTap: _close,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_gallery.hasPrevious)
+                _Chrome(
+                  visible: _chrome,
+                  animation: curved,
+                  child: Stack(
+                    children: [
                       Positioned(
-                        left: 16,
                         top: 0,
-                        bottom: 0,
-                        child: Center(
-                          child: _Arrow(
-                            icon: MgIcons.back,
-                            label: l10n.mediaPrevious,
-                            onTap: () => _go(-1),
-                          ),
+                        left: 0,
+                        right: 0,
+                        child: _TopBar(
+                          message: message,
+                          store: widget.store,
+                          title: widget.title,
+                          date: entry.date,
+                          counter: entries.length > 1
+                              ? l10n.mediaCounter(
+                                  _gallery.index + 1,
+                                  entries.length,
+                                )
+                              : null,
+                          actions: [
+                            if (_rotatable)
+                              _BarButton(
+                                icon: _rotateIcon,
+                                label: l10n.mediaRotate,
+                                onTap: _rotate,
+                              ),
+                            if (_canSave && entry.item is PhotoItem)
+                              _BarButton(
+                                icon: MgIcons.copy,
+                                label: l10n.mediaCopy,
+                                onTap: () => unawaited(_copy()),
+                              ),
+                            if (_canSave)
+                              _BarButton(
+                                icon: MgIcons.download,
+                                label: l10n.mediaSave,
+                                onTap: () => unawaited(_save()),
+                              ),
+                            if (_canSave &&
+                                message != null &&
+                                widget.onForward != null)
+                              _BarButton(
+                                icon: MgIcons.forward,
+                                label: l10n.menuForward,
+                                onTap: () => widget.onForward!(message),
+                              ),
+                            if (message != null && widget.onShowInChat != null)
+                              _BarButton(
+                                icon: MgIcons.chat,
+                                label: l10n.showInChat,
+                                onTap: () => widget.onShowInChat!(message),
+                              ),
+                            if (message != null && widget.onDelete != null)
+                              _BarButton(
+                                icon: MgIcons.trash,
+                                label: l10n.menuDelete,
+                                onTap: () => unawaited(_delete()),
+                              ),
+                            _BarButton(
+                              icon: MgIcons.close,
+                              label: l10n.close,
+                              onTap: _close,
+                            ),
+                          ],
                         ),
                       ),
-                    if (_gallery.hasNext)
-                      Positioned(
-                        right: 16,
-                        top: 0,
-                        bottom: 0,
-                        child: Center(
-                          child: _Arrow(
-                            icon: MgIcons.chevron,
-                            label: l10n.mediaNext,
-                            onTap: () => _go(1),
+                      if (_gallery.hasPrevious)
+                        Positioned(
+                          left: 16,
+                          top: 0,
+                          bottom: 0,
+                          child: Center(
+                            child: _Arrow(
+                              icon: MgIcons.back,
+                              label: l10n.mediaPrevious,
+                              onTap: () => _go(-1),
+                            ),
                           ),
                         ),
-                      ),
-                    Positioned(
-                      left: 72,
-                      right: 72,
-                      bottom: 18,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (hasCaption)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 640,
-                                  maxHeight: 48,
-                                ),
-                                child: DefaultTextStyle.merge(
-                                  style: const TextStyle(
-                                    color: Color(0xFFF2F2F5),
+                      if (_gallery.hasNext)
+                        Positioned(
+                          right: 16,
+                          top: 0,
+                          bottom: 0,
+                          child: Center(
+                            child: _Arrow(
+                              icon: MgIcons.chevron,
+                              label: l10n.mediaNext,
+                              onTap: () => _go(1),
+                            ),
+                          ),
+                        ),
+                      Positioned(
+                        left: 72,
+                        right: 72,
+                        bottom: 18,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (hasCaption)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 640,
+                                    maxHeight: 48,
                                   ),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  child: FormattedTextView(text: caption),
+                                  child: DefaultTextStyle.merge(
+                                    style: const TextStyle(
+                                      color: _onDark,
+                                      fontSize: MgType.body,
+                                      height: 1.35,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    child: FormattedTextView(
+                                      text: caption,
+                                      style: const TextStyle(
+                                        color: _onDark,
+                                        fontSize: MgType.body,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          if (_playback case final playback? when isVideo)
-                            _VideoControls(playback: playback),
-                          if (entries.length > 1)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: _Thumbnails(
-                                key: const ValueKey('viewer-thumbnails'),
-                                gallery: _gallery,
-                                onPick: (index) => _go(index - _gallery.index),
+                            if (_playback case final playback? when isVideo)
+                              _VideoControls(playback: playback),
+                            if (entries.length > 1)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: _Thumbnails(
+                                  key: const ValueKey('viewer-thumbnails'),
+                                  gallery: _gallery,
+                                  onPick: (index) =>
+                                      _go(index - _gallery.index),
+                                ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              if (_notice case final notice?)
-                Positioned(
-                  top: 72,
-                  left: 0,
-                  right: 0,
-                  child: Center(child: _Notice(notice)),
-                ),
-            ],
+                if (_notice case final notice?)
+                  Positioned(
+                    top: 72,
+                    left: 0,
+                    right: 0,
+                    child: Center(child: _Notice(notice)),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -902,7 +922,7 @@ class _TopBar extends StatelessWidget {
                     maxLines: 1,
                     style: const TextStyle(
                       color: _onDarkSecondary,
-                      fontSize: 11.5,
+                      fontSize: 12,
                     ),
                   ),
               ],
@@ -927,8 +947,9 @@ class _TopBar extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: Padding(
-              // Clear of the window's traffic lights.
-              padding: const EdgeInsets.only(left: 64, right: 220),
+              // Clear of the window's traffic lights, which end about 75 px
+              // in, with a comfortable gap before the avatar.
+              padding: const EdgeInsets.only(left: 80, right: 220),
               child: who ?? const SizedBox.shrink(),
             ),
           ),
@@ -937,7 +958,7 @@ class _TopBar extends StatelessWidget {
               counter,
               style: const TextStyle(
                 color: _onDarkSecondary,
-                fontSize: 12.5,
+                fontSize: 13,
                 fontFeatures: [FontFeature.tabularFigures()],
               ),
             ),
@@ -1061,7 +1082,7 @@ class _Notice extends StatelessWidget {
         color: const Color(0xCC2A2A2E),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Text(text, style: const TextStyle(color: _onDark, fontSize: 12.5)),
+      child: Text(text, style: const TextStyle(color: _onDark, fontSize: 13)),
     ),
   );
 }
@@ -1484,7 +1505,7 @@ class _RateButton extends StatelessWidget {
               text,
               style: TextStyle(
                 color: rate == 1 ? _onDarkSecondary : _onDark,
-                fontSize: 12.5,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),

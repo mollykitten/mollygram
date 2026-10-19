@@ -1,13 +1,13 @@
 import 'package:flutter/widgets.dart';
 
-import '../glass/glass.dart';
 import '../icon_button.dart';
 import '../icons.dart';
 import '../theme/colors.dart';
 import '../theme/theme.dart';
+import 'bar_strip.dart';
 
 /// The pinned message under the chat header, as in Telegram for macOS: a
-/// glass capsule with a segmented indicator on the left that shows which
+/// full-width strip with a segmented indicator on the left that shows which
 /// of [count] pinned messages is [index], the title and the text. A click
 /// goes to the message and the bar moves on to the previous one, so the
 /// text slides as they cycle.
@@ -42,14 +42,13 @@ class PinnedBar extends StatelessWidget {
   final String? listTooltip;
   final VoidCallback? onList;
 
-  static const double height = 40;
+  static const double height = 44;
 
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return Glass(
-      radius: height / 2,
-      padding: const EdgeInsets.fromLTRB(12, 0, 4, 0),
+    return BarStrip(
+      padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
       child: SizedBox(
         height: height,
         child: Row(

@@ -69,7 +69,6 @@ final settingsSections = <SettingsSection>[
     tint: const Color(0xFFE5343B),
     title: (l10n) => l10n.notifications,
     builder: (context) => const NotificationsPage(),
-    fullBleed: true,
   ),
   SettingsSection(
     id: 'privacy',
@@ -215,8 +214,12 @@ class SettingsWindow extends ConsumerStatefulWidget {
   /// Width of the source list.
   static const sidebarWidth = 236.0;
 
-  /// Height of the title bar band, where the window buttons sit.
-  static const titleBarHeight = 52.0;
+  /// Height of the title bar band, where the window buttons sit:
+  /// TelegramSwift's navigation bar.
+  static const titleBarHeight = 50.0;
+
+  /// Top of the back and close buttons (32 tall), centred on the band.
+  static const _buttonTop = (titleBarHeight - 32) / 2;
 
   @override
   ConsumerState<SettingsWindow> createState() => _SettingsWindowState();
@@ -320,16 +323,15 @@ class _SettingsWindowState extends ConsumerState<SettingsWindow>
     final title = page?.title ?? section.title(l10n);
     final pageKey = '${section.id}/${_nested.length}';
 
-    final sidebar = DecoratedBox(
-      decoration: BoxDecoration(
-        color: s.sidebar,
-        border: Border(right: BorderSide(color: c.separator, width: 0.5)),
-      ),
+    // Laid out as the chats' sidebar, so the window buttons sit in the
+    // same place: a title row over the search field, on the frame.
+    final sidebar = ColoredBox(
+      color: s.sidebar,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(
-            height: SettingsWindow.titleBarHeight - 8,
+            height: SidebarIsland.topInset + SidebarIsland.titleBarHeight,
             child: WindowDragArea(),
           ),
           Padding(
@@ -405,8 +407,8 @@ class _SettingsWindowState extends ConsumerState<SettingsWindow>
                         overflow: TextOverflow.ellipsis,
                         style: mgTextStyle(
                           c,
-                          size: 15,
-                          weight: FontWeight.w700,
+                          size: MgType.title,
+                          weight: MgWeight.medium,
                           height: 1.2,
                         ),
                       ),
@@ -436,7 +438,7 @@ class _SettingsWindowState extends ConsumerState<SettingsWindow>
         ),
         if (_nested.isNotEmpty)
           Positioned(
-            top: 12,
+            top: SettingsWindow._buttonTop,
             left: 10,
             child: MgIconButton(
               icon: MgIcons.back,
@@ -445,7 +447,7 @@ class _SettingsWindowState extends ConsumerState<SettingsWindow>
             ),
           ),
         Positioned(
-          top: 12,
+          top: SettingsWindow._buttonTop,
           right: 10,
           child: MgIconButton(
             icon: MgIcons.close,
@@ -468,13 +470,25 @@ class _SettingsWindowState extends ConsumerState<SettingsWindow>
               end: 1.0,
             ).animate(CurvedAnimation(parent: _appear, curve: settingsCurve)),
             child: ColoredBox(
-              color: s.pane,
+              color: s.sidebar,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   SizedBox(width: SettingsWindow.sidebarWidth, child: sidebar),
+                  // The page lies on a card, as a chat does.
                   Expanded(
-                    child: SettingsNavigation(push: _push, child: pane),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        0,
+                        SidebarIsland.topInset,
+                        SidebarIsland.topInset,
+                        SidebarIsland.topInset,
+                      ),
+                      child: ChatCard(
+                        background: ColoredBox(color: s.pane),
+                        child: SettingsNavigation(push: _push, child: pane),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -516,7 +530,7 @@ class _PageSwitcher extends StatelessWidget {
   );
 }
 
-class _SidebarItem extends StatefulWidget {
+class _SidebarItem extends StatelessWidget {
   const _SidebarItem({
     super.key,
     required this.section,
@@ -529,51 +543,37 @@ class _SidebarItem extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_SidebarItem> createState() => _SidebarItemState();
-}
-
-class _SidebarItemState extends State<_SidebarItem> {
-  var _hover = false;
-
-  @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
     final l10n = AppLocalizations.of(context);
-    final selected = widget.selected;
     return Semantics(
       button: true,
       selected: selected,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: SettingsSidebarTile(
-            selected: selected,
-            hover: _hover,
-            height: 32,
-            child: Row(
-              children: [
-                SettingsSymbol(
-                  icon: widget.section.icon,
-                  tint: widget.section.tint,
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    widget.section.title(l10n),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: mgTextStyle(
-                      c,
-                      color: selected ? c.onAccent : null,
-                      height: 1.2,
-                    ),
+      child: MgPressable(
+        scale: 1,
+        onTap: onTap,
+        builder: (context, state) => SettingsSidebarTile(
+          selected: selected,
+          hover: state.hovered,
+          pressed: state.pressed,
+          height: 34,
+          child: Row(
+            children: [
+              SettingsSymbol(icon: section.icon, tint: section.tint),
+              const SizedBox(width: MgSpace.ml),
+              Expanded(
+                child: Text(
+                  section.title(l10n),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: mgTextStyle(
+                    c,
+                    color: selected ? c.onAccent : null,
+                    height: 1.2,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -588,12 +588,16 @@ class SettingsSidebarTile extends StatelessWidget {
     super.key,
     required this.selected,
     required this.hover,
+    this.pressed = false,
     required this.height,
     required this.child,
   });
 
   final bool selected;
   final bool hover;
+
+  /// Held down: a shade deeper than hover, before the click selects it.
+  final bool pressed;
   final double height;
   final Widget child;
 
@@ -601,17 +605,19 @@ class SettingsSidebarTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 120),
+      duration: pressed ? MgMotion.press : const Duration(milliseconds: 120),
       curve: settingsCurve,
       height: height,
       padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
         color: selected
             ? c.accent
+            : pressed
+            ? Color.alphaBlend(c.hover, c.hover)
             : hover
             ? c.hover
             : c.accent.withValues(alpha: 0),
-        borderRadius: BorderRadius.circular(7),
+        borderRadius: BorderRadius.circular(MgRadius.control),
       ),
       child: child,
     );

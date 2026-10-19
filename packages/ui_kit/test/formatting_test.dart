@@ -247,6 +247,30 @@ void main() {
       expect(c.ranges, isEmpty);
     });
 
+    test('custom emoji stay apart and drop out when edited into', () {
+      final c = RichTextEditingController(text: 'ab')
+        ..selection = const TextSelection.collapsed(offset: 1);
+      c.insertCustomEmoji('😀', 5);
+      c.insertCustomEmoji('😀', 5);
+      expect(c.text, 'a😀😀b');
+      expect(c.ranges, [
+        const FormatRange(1, 3, TextFormat.customEmoji, emojiId: 5),
+        const FormatRange(3, 5, TextFormat.customEmoji, emojiId: 5),
+      ]);
+      // Typing in front moves both along.
+      c.value = const TextEditingValue(
+        text: 'xa😀😀b',
+        selection: TextSelection.collapsed(offset: 1),
+      );
+      expect(c.ranges.first.start, 2);
+      // Deleting one code unit of the second emoji drops its range.
+      c.value = const TextEditingValue(
+        text: 'xa😀\ud83dc',
+        selection: TextSelection.collapsed(offset: 5),
+      );
+      expect(c.ranges.length, 1);
+    });
+
     test('a format toggled at the caret applies to what is typed next', () {
       final c = RichTextEditingController(text: 'ab')
         ..selection = const TextSelection.collapsed(offset: 2);
@@ -465,6 +489,20 @@ void main() {
       expect(c.text, 'hello world');
     });
 
+    testWidgets('the selection menu formats and copies', (tester) async {
+      final c = await pump(tester);
+      final state = tester.state<EditableTextState>(find.byType(EditableText));
+      expect(state.showToolbar(), isTrue);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byType(SelectionMenu), findsOneWidget);
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('Plain text'), findsOneWidget);
+      await tester.tap(find.text('B'));
+      await tester.pump();
+      expect(c.isActive(_b), isTrue);
+      expect(find.byType(SelectionMenu), findsNothing);
+    });
+
     testWidgets('⌘K asks for a link', (tester) async {
       final c = await pump(tester);
       await press(tester, LogicalKeyboardKey.keyK);
@@ -521,6 +559,111 @@ void main() {
       expect(picked, [1]);
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       expect(picked, [1, 1]);
+    });
+
+    testWidgets(
+      'suggestions float over the chat and leave the composer alone',
+      (tester) async {
+        final c = RichTextEditingController();
+        addTearDown(c.dispose);
+        Widget build(List<ComposerSuggestion> suggestions) => themed(
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Composer(
+              labels: labels,
+              controller: c,
+              onSend: (_) {},
+              suggestions: suggestions,
+              onSuggestion: (_) {},
+            ),
+          ),
+        );
+        await tester.pumpWidget(build(const []));
+        final bar = tester.getRect(find.byType(Composer));
+        await tester.pumpWidget(
+          build(const [
+            ComposerSuggestion(title: 'Boris'),
+            ComposerSuggestion(title: 'Vera'),
+          ]),
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(tester.getRect(find.byType(Composer)), bar);
+        final list = tester.getRect(find.byType(ComposerSuggestionList));
+        expect(list.bottom, lessThanOrEqualTo(bar.top));
+      },
+    );
+
+    testWidgets('suggestions stay inside a narrow pane', (tester) async {
+      final c = RichTextEditingController();
+      addTearDown(c.dispose);
+      await tester.pumpWidget(
+        themed(
+          Align(
+            alignment: Alignment.bottomLeft,
+            child: SizedBox(
+              width: 200,
+              child: Composer(
+                labels: labels,
+                controller: c,
+                onSend: (_) {},
+                suggestions: const [ComposerSuggestion(title: 'Boris')],
+                onSuggestion: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      final list = tester.getRect(find.byType(ComposerSuggestionList));
+      expect(list.right, lessThanOrEqualTo(200));
+    });
+
+    testWidgets('suggestions clear a bar above the composer', (tester) async {
+      final c = RichTextEditingController();
+      addTearDown(c.dispose);
+      await tester.pumpWidget(
+        themed(
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Composer(
+              labels: labels,
+              controller: c,
+              onSend: (_) {},
+              suggestionsLift: 80,
+              suggestions: const [ComposerSuggestion(title: 'Boris')],
+              onSuggestion: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      final bar = tester.getRect(find.byType(Composer));
+      final list = tester.getRect(find.byType(ComposerSuggestionList));
+      expect(list.bottom, lessThanOrEqualTo(bar.top - 80));
+    });
+
+    testWidgets('the bar is 50 px and the action is a 32 px accent square', (
+      tester,
+    ) async {
+      final c = RichTextEditingController();
+      addTearDown(c.dispose);
+      await tester.pumpWidget(
+        themed(
+          Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [Composer(labels: labels, controller: c, onSend: (_) {})],
+          ),
+        ),
+      );
+      // 50 px plus the hairline above it.
+      expect(tester.getSize(find.byType(Composer)).height, 51);
+      expect(find.byType(MgRecordButton), findsOneWidget);
+      expect(find.byType(MgSendButton), findsNothing);
+      expect(tester.getSize(find.byType(MgRecordButton)), const Size(32, 32));
+      await tester.enterText(find.byType(EditableText), 'Hi');
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(MgSendButton), findsOneWidget);
+      expect(tester.getSize(find.byType(MgSendButton)), const Size(32, 32));
     });
   });
 }

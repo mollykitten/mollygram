@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../icons.dart';
 import '../theme/colors.dart';
 import '../theme/theme.dart';
+import '../theme/tokens.dart';
 
 /// The 30 px search field at the top of the sidebar.
 class MgSearchField extends StatelessWidget {
@@ -25,18 +26,18 @@ class MgSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    final style = mgTextStyle(c);
+    final style = mgTextStyle(c, size: MgType.small);
     return Container(
       height: 30,
-      padding: const EdgeInsets.symmetric(horizontal: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: c.field,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(MgRadius.small),
       ),
       child: Row(
         children: [
-          MgIcon(MgIcons.search, size: 14, color: c.fg2),
-          const SizedBox(width: 6),
+          MgIcon(MgIcons.search, size: 12, stroke: 2.2, color: c.muted),
+          const SizedBox(width: 7),
           Expanded(
             child: TextField(
               controller: controller,
@@ -44,10 +45,10 @@ class MgSearchField extends StatelessWidget {
               onChanged: onChanged,
               onSubmitted: onSubmitted,
               style: style,
-              cursorHeight: 15,
+              cursorHeight: 14,
               decoration: InputDecoration.collapsed(
                 hintText: hintText,
-                hintStyle: style.copyWith(color: c.fg2),
+                hintStyle: style.copyWith(color: c.muted),
               ),
             ),
           ),

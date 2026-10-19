@@ -17,23 +17,30 @@ import 'package:pasteboard/pasteboard.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../avatar/peer_avatar.dart';
 import '../chat/attachment_preview.dart';
 import '../chat/audio_player_bar.dart';
 import '../chat/bot_keyboard.dart';
+import '../chat/chat_translation.dart';
 import '../chat/contact_picker.dart';
+import '../chat/custom_emoji.dart';
 import '../chat/describe.dart';
+import '../chat/edit_history.dart';
 import '../chat/emoji_sticker_panel.dart';
 import '../chat/formatted_text.dart';
 import '../chat/forum_topics.dart';
 import '../chat/forward_picker.dart';
 import '../chat/inline_results.dart';
 import '../chat/link_preview_bar.dart';
+import '../chat/load_spinner.dart';
 import '../chat/location_picker.dart';
+import '../chat/measured.dart';
 import '../chat/media_viewer.dart';
 import '../chat/message_actions.dart';
 import '../chat/message_tile.dart';
 import '../chat/poll_composer.dart';
 import '../chat/poll_content.dart';
+import '../chat/saved_tags.dart';
 import '../chat/saved_topics.dart';
 import '../chat/schedule_picker.dart';
 import '../chat/send_as.dart';
@@ -44,6 +51,7 @@ import '../chat/timeline.dart';
 import '../chat/timeline_scroll.dart';
 import '../chat/timeline_view.dart';
 import '../chat/topic_sheet.dart';
+import '../chat/translate_bar.dart';
 import '../chat_search/chat_search_bar.dart';
 import '../chat_search/sender_picker.dart';
 import '../compose/command_suggester.dart';
@@ -56,17 +64,24 @@ import '../links/link_router.dart';
 import '../profile/peer_info_state.dart';
 import '../secret/secret_chat.dart';
 import '../session/providers.dart';
+import '../settings/preferences.dart';
 import '../shared_media/message_jump.dart';
 import '../voice/voice_record_composer.dart';
 import '../window_drag_area.dart';
+import 'chat_status.dart';
 import 'format.dart';
+import 'workspace.dart';
 
 /// One conversation: messages scroll under the floating header and
 /// composer.
 class ChatView extends ConsumerStatefulWidget {
-  const ChatView({super.key, required this.chatId});
+  const ChatView({super.key, required this.chatId, this.focused = true});
 
   final int chatId;
+
+  /// Whether this is the pane that has the keyboard; in a split tab only
+  /// that one takes the cursor.
+  final bool focused;
 
   @override
   ConsumerState<ChatView> createState() => _ChatViewState();
@@ -83,6 +98,10 @@ class _ChatViewState extends ConsumerState<ChatView> {
   late final _stickerHints = StickerSuggester(controller: _draft);
   late final _inline = InlineQuerySuggester(controller: _draft);
   final _focus = FocusNode();
+
+  /// Holds the focus when the chat is clicked outside any field, so typing
+  /// still reaches [_typeToComposer].
+  final _area = FocusNode(skipTraversal: true, debugLabel: 'chat area');
   late final ConversationController _conversations;
 
   /// The message the next one answers, shown above the composer.
@@ -135,6 +154,11 @@ class _ChatViewState extends ConsumerState<ChatView> {
   /// back there first, as in the official app.
   int? _returnTo;
 
+  /// Where each chat was left: the message just above the composer, so
+  /// coming back lands there, as in the official apps. A chat left at
+  /// the bottom is forgotten and opens at the newest message.
+  static final _positions = <int, int>{};
+
   /// The message the timeline grows from: the first unread one when the
   /// chat opened, or where a jump went. Null keeps the newest at the
   /// bottom.
@@ -161,6 +185,14 @@ class _ChatViewState extends ConsumerState<ChatView> {
   static final _pinnedHidden = <int>{};
   var _pinnedShown = false;
 
+  /// The chat's translation, shown in place of its messages' text while
+  /// the user has it on, and whether its bar is under the header.
+  late final _translation = ChatTranslation(
+    (chatId, messageId, to) =>
+        _conversations.translateFormatted(chatId, messageId, to),
+  )..onFailure = _translateFailed;
+  var _translateShown = false;
+
   /// The timeline shows only the pinned messages, from the bar's button.
   var _pinnedListOpen = false;
 
@@ -184,12 +216,21 @@ class _ChatViewState extends ConsumerState<ChatView> {
   StreamSubscription<void>? _topicsSub;
   var _topicsOpening = false;
 
+  /// Set after a failed load of the topics, to try again shortly.
+  Timer? _topicsRetry;
+
   /// Saved Messages shown as the chats they came from, while the list
   /// button in the capsule is on.
   SavedTopicList? _savedTopics;
   StreamSubscription<void>? _savedTopicsSub;
   var _savedTopicsOpening = false;
   var _savedOpen = false;
+
+  /// The tags on Saved Messages, in a bar under the header while there
+  /// are any; one opens the messages carrying it in the timeline's place.
+  SavedTags? _savedTags;
+  StreamSubscription<void>? _savedTagsSub;
+  var _savedTagsOpening = false;
   StreamSubscription<void>? _threadSub;
   final _threadScroll = TimelineScrollController();
   final _threadDraft = RichTextEditingController();
@@ -197,6 +238,14 @@ class _ChatViewState extends ConsumerState<ChatView> {
 
   /// A join or mute request on its way.
   var _actionPending = false;
+
+  /// Messages others deleted that the privacy store kept for this chat,
+  /// shown in their place while "Keep deleted messages" is on.
+  var _deleted = const <DeletedMessage>[];
+  StreamSubscription<List<DeletedMessage>>? _deletedSub;
+
+  TelegramSession get _session =>
+      ref.read(telegramSessionProvider).requireValue;
 
   /// The ids of the selected messages while messages are being selected;
   /// null otherwise.
@@ -231,8 +280,96 @@ class _ChatViewState extends ConsumerState<ChatView> {
       ..search = _inlineSearch()
       ..addListener(_mentionsChanged);
     _scroll.addListener(_followScroll);
+    _scroll.addListener(() => _topUp(_scroll));
+    _threadScroll.addListener(() {
+      _followList(_threadScroll);
+      _topUp(_threadScroll);
+    });
+    _pinnedScroll.addListener(() => _followList(_pinnedScroll));
+    _scheduledScroll.addListener(() => _followList(_scheduledScroll));
     _open(widget.chatId);
     WidgetsBinding.instance.addPostFrameCallback((_) => _takeJump());
+    _focusComposer();
+  }
+
+  /// Puts the cursor in the composer once the frame is built, as the
+  /// official client does whenever a chat comes to the front: on opening
+  /// it, on switching back to its tab or pane. A dialog or sheet above the
+  /// chat keeps the focus it has.
+  void _focusComposer() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_onScreen || !widget.focused) return;
+      if (_inputFocus.context == null) return;
+      if (ModalRoute.of(context)?.isCurrent == false) return;
+      _inputFocus.requestFocus();
+    });
+  }
+
+  /// The field that takes typing: the thread's while comments, a topic or
+  /// a saved tag are open, the chat's otherwise.
+  FocusNode get _inputFocus => _thread != null ? _threadFocus : _focus;
+  RichTextEditingController get _inputDraft =>
+      _thread != null ? _threadDraft : _draft;
+
+  /// A click on the chat that lands on no field leaves the focus on the
+  /// chat as a whole rather than nowhere, also when it was left on
+  /// something outside the chat, such as the workspace after a palette.
+  void _claimFocus() {
+    scheduleMicrotask(() {
+      if (!mounted || _area.hasFocus) return;
+      final focused = FocusManager.instance.primaryFocus;
+      final context = focused?.context;
+      if (context?.findAncestorWidgetOfExactType<EditableText>() != null) {
+        return;
+      }
+      // A control inside the chat keeps the focus it was just given.
+      final inside = focused != null && focused.ancestors.contains(_area);
+      if (!inside) _area.requestFocus();
+    });
+  }
+
+  /// Typing anywhere in the chat, with nothing being edited, goes to the
+  /// composer: the key that started it is not lost.
+  KeyEventResult _typeToComposer(FocusNode node, KeyEvent event) {
+    final input = _inputFocus;
+    if (event is! KeyDownEvent || input.hasFocus || input.context == null) {
+      return KeyEventResult.ignored;
+    }
+    final primary = FocusManager.instance.primaryFocus;
+    if (primary?.context?.findAncestorWidgetOfExactType<EditableText>() !=
+        null) {
+      return KeyEventResult.ignored;
+    }
+    // Escape and Enter belong to a recording in progress.
+    if (primary?.debugLabel == VoiceRecordComposer.focusLabel) {
+      return KeyEventResult.ignored;
+    }
+    // Option and AltGr make characters of their own, so Alt alone passes;
+    // a shortcut is Control or Command without it.
+    final keys = HardwareKeyboard.instance;
+    if (keys.isMetaPressed || (keys.isControlPressed && !keys.isAltPressed)) {
+      return KeyEventResult.ignored;
+    }
+    final character = event.character;
+    if (character == null ||
+        character.isEmpty ||
+        character.codeUnitAt(0) < 0x20 ||
+        character.codeUnitAt(0) == 0x7f) {
+      return KeyEventResult.ignored;
+    }
+    input.requestFocus();
+    final draft = _inputDraft;
+    final value = draft.value;
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+    draft.value = value.copyWith(
+      text: value.text.replaceRange(selection.start, selection.end, character),
+      selection: TextSelection.collapsed(
+        offset: selection.start + character.length,
+      ),
+    );
+    return KeyEventResult.handled;
   }
 
   /// Shows the message another panel asked this chat to show.
@@ -245,14 +382,18 @@ class _ChatViewState extends ConsumerState<ChatView> {
   @override
   void didUpdateWidget(ChatView old) {
     super.didUpdateWidget(old);
+    if (widget.focused && !old.focused) _focusComposer();
     if (old.chatId == widget.chatId) return;
+    _focusComposer();
     // An edit belongs to the old chat: give back the draft it set aside.
     if (_editing != null) _draft.setFormatted(_setAside, _setAsideRanges);
     _editing = null;
     _saveDraft(old.chatId);
+    _rememberPosition(old.chatId);
     _close(old.chatId);
     _dropTopics();
     _dropSavedTopics();
+    _translation.reset();
     _sponsored = null;
     _sponsoredAsked = false;
     _viewed.clear();
@@ -303,9 +444,12 @@ class _ChatViewState extends ConsumerState<ChatView> {
     _draftTimer?.cancel();
     _previewTimer?.cancel();
     if (_editing == null) _saveDraft(widget.chatId);
+    _rememberPosition(widget.chatId);
     _close(widget.chatId);
     _dropTopics();
     _dropSavedTopics();
+    _translation.dispose();
+    _deletedSub?.cancel();
     _mentions.dispose();
     _emojiHints.dispose();
     _commands.dispose();
@@ -317,6 +461,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
     _threadFocus.dispose();
     _draft.dispose();
     _focus.dispose();
+    _area.dispose();
     _scroll.dispose();
     _pinnedScroll.dispose();
     _scheduledScroll.dispose();
@@ -336,6 +481,103 @@ class _ChatViewState extends ConsumerState<ChatView> {
       unawaited(_quiet(_conversations.loadPinned(chatId)));
     }
     _loadDraft(chatId);
+    _watchDeleted(chatId);
+    // Unread messages come first; otherwise back to where the chat was left.
+    final left = _positions[chatId];
+    if (!_awaitingUnread && left != null) {
+      unawaited(_restorePosition(chatId, left));
+    }
+  }
+
+  /// Keeps the message above the composer for [_restorePosition], or
+  /// forgets the chat when it was left at the bottom.
+  void _rememberPosition(int chatId) {
+    if (_listOpen || !_scroll.hasClients) return;
+    if (_scroll.pinned) {
+      _positions.remove(chatId);
+      return;
+    }
+    final viewport = _scroll.position.viewportDimension;
+    final hit = TimelineView.rowAt(_timelineKey, viewport - _bottomInset - 4);
+    if (hit == null) return;
+    _positions[chatId] = hit.messageId;
+  }
+
+  /// Puts message [id] back just above the composer, loading the history
+  /// around it when the chat was reopened without it.
+  Future<void> _restorePosition(int chatId, int id) async {
+    final store = _conversations.store;
+    if (!store.contains(chatId, id)) {
+      try {
+        await _conversations.loadAround(chatId, id);
+      } on Object {
+        return;
+      }
+      if (!mounted || widget.chatId != chatId) return;
+      if (!store.contains(chatId, id)) return;
+    }
+    _scroll
+      ..pinned = false
+      ..request((_) => -(_bottomInset + 4));
+    setState(() => _anchor = id);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.chatId == chatId) _followScroll();
+    });
+  }
+
+  /// Follows the deleted messages kept for [chatId], when any are kept.
+  void _watchDeleted(int chatId) {
+    _deletedSub?.cancel();
+    _deletedSub = null;
+    _deleted = const [];
+    final capture = _session.capture;
+    if (!capture.keepDeleted) return;
+    final store = capture.store;
+    if (store == null) return;
+    _deletedSub = store
+        .asStream()
+        .asyncExpand((store) => store.deleted.watchChat(chatId))
+        .handleError((Object _) {})
+        .listen((kept) {
+          if (!mounted || widget.chatId != chatId) return;
+          setState(() => _deleted = kept);
+        });
+  }
+
+  /// [list] with the kept deleted messages that fall inside the loaded
+  /// history put back where they were, newest first.
+  List<ConversationMessage> _withDeleted(
+    List<ConversationMessage> list,
+    ConversationStore store,
+  ) {
+    if (_deleted.isEmpty) return list;
+    final oldest = list.isEmpty ? null : list.last.id;
+    final reachedStart = store.reachedStart(widget.chatId);
+    final live = {for (final message in list) message.id};
+    // Older than the loaded history, a message waits for that page.
+    bool inRange(int id) => reachedStart || (oldest != null && id > oldest);
+    final kept = [
+      for (final deleted in _deleted)
+        if (!live.contains(deleted.messageId) && inRange(deleted.messageId))
+          ConversationMessage(deleted.message, deletedAt: deleted.deletedAt),
+    ];
+    if (kept.isEmpty) return list;
+    return [...list, ...kept]..sort((a, b) => b.id.compareTo(a.id));
+  }
+
+  /// Opens the earlier versions of [message] from the privacy store.
+  void _showEditHistory(ConversationMessage message) {
+    final store = _session.capture.store;
+    if (store == null) return;
+    unawaited(
+      showEditHistory(
+        context,
+        message: message,
+        versions: store.then(
+          (store) => store.edits.versions(message.chatId, message.id),
+        ),
+      ),
+    );
   }
 
   /// Puts the draft TDLib keeps for [chatId] into the empty composer: its
@@ -468,6 +710,135 @@ class _ChatViewState extends ConsumerState<ChatView> {
 
   /// The bar under the header, when the chat has pinned messages and the
   /// user hasn't closed it.
+  /// The room the translation bar takes under the header.
+  double get _translateInset => _translateShown ? ChatTranslateBar.height : 0;
+
+  void _translateFailed() {
+    if (mounted) {
+      showMgToast(context, AppLocalizations.of(context).translateFailed);
+    }
+  }
+
+  /// The bar that translates the whole chat: offered when the chat is in
+  /// another language than the one the user reads, and, once it is on,
+  /// the way back to the original. Sets [_translateShown], which the
+  /// timeline's inset follows.
+  Widget? _translateBar(
+    AppLocalizations l10n,
+    List<ConversationMessage>? list,
+  ) {
+    final chatId = widget.chatId;
+    final choice = ref.watch(
+      preferencesProvider.select(
+        (p) => (
+          p.translateTo,
+          p.translateSkip,
+          p.translateChats.contains(chatId),
+          p.translateHidden.contains(chatId),
+        ),
+      ),
+    );
+    final locale = Localizations.localeOf(context).languageCode;
+    final to = choice.$1 ?? locale;
+    final (_, skip, active, hidden) = choice;
+    _translation.configure(to: to, skip: skip, active: active);
+    _translateShown = false;
+    if (list == null || _listOpen) return null;
+    final detected = _translation.chatLanguage(list);
+    final source = active ? _translation.language : detected;
+    if (!active &&
+        (hidden || source == null || source == to || skip.contains(source))) {
+      return null;
+    }
+    _translateShown = true;
+    final state = !active
+        ? TranslateBarState.offer
+        : _translation.working
+        ? TranslateBarState.working
+        : TranslateBarState.shown;
+    return ChatTranslateBar(
+      key: const ValueKey('translateBar'),
+      state: state,
+      primary: switch (state) {
+        TranslateBarState.offer => l10n.translateTo(languageName(to, locale)),
+        TranslateBarState.working => l10n.translating,
+        TranslateBarState.shown => l10n.translateShowOriginal,
+      },
+      secondary: state == TranslateBarState.shown
+          ? source == null
+                ? l10n.translated
+                : l10n.translatedFrom(languageName(source, locale, from: true))
+          : null,
+      optionsTooltip: l10n.translateOptions,
+      onPrimary: () => _setTranslating(!active),
+      onOptions: (position) => _translateMenu(position, source, active),
+    );
+  }
+
+  void _updateTranslation(Preferences Function(Preferences p) change) =>
+      ref.read(preferencesProvider.notifier).update(change);
+
+  void _setTranslating(bool on) {
+    final chatId = widget.chatId;
+    _updateTranslation(
+      (p) => p.copyWith(
+        translateChats: on
+            ? {...p.translateChats, chatId}
+            : ({...p.translateChats}..remove(chatId)),
+      ),
+    );
+  }
+
+  void _translateMenu(Offset position, String? source, bool active) {
+    final l10n = AppLocalizations.of(context);
+    final locale = Localizations.localeOf(context).languageCode;
+    final chatId = widget.chatId;
+    unawaited(
+      showMgMenu(
+        context,
+        position: position,
+        items: [
+          MgMenuItem(
+            label: l10n.translateChooseLanguage,
+            icon: MgIcons.translate,
+            submenu: [
+              for (final code in translateTargets)
+                MgMenuItem(
+                  label: languageName(code, locale),
+                  onSelected: () => _updateTranslation(
+                    (p) => p.copyWith(
+                      translateTo: code,
+                      translateChats: {...p.translateChats, chatId},
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (source != null)
+            MgMenuItem(
+              label: l10n.translateSkipLanguage(languageName(source, locale)),
+              icon: MgIcons.close,
+              onSelected: () => _updateTranslation(
+                (p) => p.copyWith(
+                  translateSkip: {...p.translateSkip, source},
+                  translateChats: {...p.translateChats}..remove(chatId),
+                ),
+              ),
+            ),
+          if (!active)
+            MgMenuItem(
+              label: l10n.translateHideBar,
+              icon: MgIcons.hide,
+              onSelected: () => _updateTranslation(
+                (p) =>
+                    p.copyWith(translateHidden: {...p.translateHidden, chatId}),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget? _pinnedBar(AppLocalizations l10n, ConversationStore store) {
     final chatId = widget.chatId;
     final ids = store.pinnedIds(chatId);
@@ -609,6 +980,140 @@ class _ChatViewState extends ConsumerState<ChatView> {
     _savedTopics = null;
     _savedTopicsOpening = false;
     _savedOpen = false;
+    _savedTagsSub?.cancel();
+    _savedTagsSub = null;
+    _savedTags?.dispose();
+    _savedTags = null;
+    _savedTagsOpening = false;
+  }
+
+  /// The tag whose messages the open thread shows, as a reaction key.
+  String? get _selectedTag => switch (_thread?.savedTag) {
+    final tag? => reactionKey(tag),
+    null => null,
+  };
+
+  /// Whether the tag bar has a place: Saved Messages with tags, showing
+  /// the timeline or one tag's messages.
+  bool get _tagsShown =>
+      _saved &&
+      (_savedTags?.tags.isNotEmpty ?? false) &&
+      (!_listOpen || _selectedTag != null);
+
+  /// The tag bar under the header, loading the tags the first time Saved
+  /// Messages shows.
+  Widget? _tagBar(AppLocalizations l10n) {
+    if (!_saved) return null;
+    final tags = _savedTags;
+    if (tags == null) {
+      if (!_savedTagsOpening) {
+        _savedTagsOpening = true;
+        scheduleMicrotask(() => unawaited(_openSavedTags()));
+      }
+      return null;
+    }
+    if (!_tagsShown) return null;
+    return SavedTagBar(
+      tags: tags.tags,
+      selected: _selectedTag,
+      onSelect: (tag) => unawaited(_toggleSavedTag(tag)),
+      onMenu: (tag, position) => unawaited(_showTagMenu(l10n, tag, position)),
+    );
+  }
+
+  Future<void> _openSavedTags() async {
+    final chatId = widget.chatId;
+    final tags = _conversations.openSavedTags();
+    try {
+      await tags.load();
+    } on td.TdException {
+      tags.dispose();
+      return;
+    }
+    if (!mounted || widget.chatId != chatId) {
+      tags.dispose();
+      return;
+    }
+    setState(() => _savedTags = tags);
+    _savedTagsSub = tags.changes.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  /// Shows the Saved Messages carrying [tag] in the timeline's place, or
+  /// the whole timeline again when its chip is clicked once more.
+  Future<void> _toggleSavedTag(td.SavedMessagesTag tag) async {
+    if (_selectedTag == reactionKey(tag.tag)) {
+      _closeThread();
+      return;
+    }
+    final chatId = widget.chatId;
+    final MessageThread thread;
+    try {
+      thread = await _conversations.openSavedTag(chatId, tag.tag);
+      await thread.load();
+    } on td.TdException {
+      if (mounted) {
+        showMgToast(context, AppLocalizations.of(context).savedTagFailed);
+      }
+      return;
+    }
+    if (!mounted || widget.chatId != chatId) {
+      thread.dispose();
+      return;
+    }
+    _dropThread();
+    setState(() {
+      _thread = thread;
+      _savedOpen = false;
+      _selected = null;
+    });
+    _threadSub = thread.changes.listen((_) {
+      if (mounted) setState(() {});
+    });
+    _threadFocus.requestFocus();
+  }
+
+  Future<void> _showTagMenu(
+    AppLocalizations l10n,
+    td.SavedMessagesTag tag,
+    Offset position,
+  ) async {
+    final tags = _savedTags;
+    if (tags == null) return;
+    await showMgMenu(
+      context,
+      position: position,
+      items: [
+        MgMenuItem(
+          label: l10n.savedTagName,
+          icon: MgIcons.tag,
+          onSelected: () => unawaited(_nameTag(l10n, tags, tag)),
+        ),
+        if (tag.label.isNotEmpty)
+          MgMenuItem(
+            label: l10n.savedTagClearName,
+            icon: MgIcons.clear,
+            onSelected: () => unawaited(_quiet(tags.setLabel(tag.tag, ''))),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _nameTag(
+    AppLocalizations l10n,
+    SavedTags tags,
+    td.SavedMessagesTag tag,
+  ) async {
+    final label = await showMgPrompt(
+      context,
+      title: l10n.savedTagName,
+      confirmLabel: l10n.save,
+      cancelLabel: l10n.cancel,
+      hint: tag.label,
+    );
+    if (label == null || !mounted) return;
+    await _quiet(tags.setLabel(tag.tag, label.trim()));
   }
 
   /// The name of the topic the open thread is, forum or Saved Messages.
@@ -618,6 +1123,11 @@ class _ChatViewState extends ConsumerState<ChatView> {
     if (thread.forumTopic case final topic?) return topic.name;
     if (thread.savedTopic case final topic?) {
       return savedTopicName(l10n, _conversations.store, topic);
+    }
+    if (thread.savedTag case final tag?) {
+      final key = reactionKey(tag);
+      final named = _savedTags?.tags.where((t) => reactionKey(t.tag) == key);
+      return named == null || named.isEmpty ? key : savedTagName(named.first);
     }
     return null;
   }
@@ -630,7 +1140,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
         _topicsOpening = true;
         scheduleMicrotask(() => unawaited(_openTopics()));
       }
-      return const SizedBox.shrink();
+      return const Center(child: LoadSpinner());
     }
     return ForumTopicListView(
       key: const ValueKey('forumTopics'),
@@ -659,9 +1169,17 @@ class _ChatViewState extends ConsumerState<ChatView> {
     final list = _conversations.openTopics(chatId);
     try {
       await list.load();
-    } on td.TdException {
+    } on Object {
       list.dispose();
-      if (mounted && widget.chatId == chatId) _topicsOpening = false;
+      // A chat restored at launch can ask before the session is ready;
+      // the list is asked for again after a moment rather than left blank.
+      if (mounted && widget.chatId == chatId) {
+        _topicsRetry?.cancel();
+        _topicsRetry = Timer(const Duration(seconds: 2), () {
+          if (!mounted || widget.chatId != chatId) return;
+          setState(() => _topicsOpening = false);
+        });
+      }
       return;
     }
     if (!mounted || widget.chatId != chatId) {
@@ -736,11 +1254,55 @@ class _ChatViewState extends ConsumerState<ChatView> {
   }
 
   void _dropTopics() {
+    _topicsRetry?.cancel();
+    _topicsRetry = null;
     _topicsSub?.cancel();
     _topicsSub = null;
     _topics?.dispose();
     _topics = null;
     _topicsOpening = false;
+  }
+
+  /// The source of a forward: a channel opens at the original post when
+  /// Telegram says which it was, a group or channel posting for itself
+  /// opens as it is, and a person opens as their profile.
+  Future<void> _openForwardSource(td.MessageOrigin origin) async {
+    final workspace = ref.read(workspaceControllerProvider);
+    switch (origin) {
+      case td.MessageOriginChannel(:final chatId, :final messageId):
+        if (messageId != 0) {
+          ref.read(messageJumpProvider.notifier).request(chatId, messageId);
+        }
+        workspace.open(chatId);
+      case td.MessageOriginChat(:final senderChatId):
+        workspace.open(senderChatId);
+      case td.MessageOriginUser(:final senderUserId):
+        final peers = ref.read(telegramSessionProvider).requireValue.peers;
+        final int chatId;
+        try {
+          chatId = await peers.privateChatOf(senderUserId);
+        } on Object {
+          return;
+        }
+        if (mounted) openPeerInfo(ref, chatId);
+      case td.MessageOriginHiddenUser():
+    }
+  }
+
+  /// Opens the profile of [sender], or the info of the channel it is.
+  Future<void> _openSender(MessageSenderId sender) async {
+    if (sender.isChat) {
+      openPeerInfo(ref, sender.id);
+      return;
+    }
+    final peers = ref.read(telegramSessionProvider).requireValue.peers;
+    final int chatId;
+    try {
+      chatId = await peers.privateChatOf(sender.id);
+    } on Object {
+      return;
+    }
+    if (mounted) openPeerInfo(ref, chatId);
   }
 
   /// Opens the comments under [message], a channel post: its thread in
@@ -809,6 +1371,10 @@ class _ChatViewState extends ConsumerState<ChatView> {
         onQuote: (message, quote) => _replyInThread(message, quote: quote),
         onEdit: _editInThread,
         onForward: (messages) => unawaited(_forward(messages)),
+        recentChats: _recentForwardTargets,
+        onForwardTo: (messages, chatId) =>
+            unawaited(_forward(messages, toChat: chatId)),
+        onSelect: _select,
       ),
     );
   }
@@ -912,6 +1478,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
   Widget? _threadComposerHeader(AppLocalizations l10n) {
     if (_threadEditing case final editing?) {
       return ComposerContextBar(
+        icon: MgIcons.edit,
         title: l10n.editingMessage,
         text: describeContent(l10n, editing.content),
         closeTooltip: l10n.close,
@@ -933,6 +1500,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
     onReaction: _actions.onReaction,
     onNeedReplied: _actions.onNeedReplied,
     onMenu: (row, position) => unawaited(_showThreadMenu(row, position)),
+    onSelectToggle: _toggleSelected,
     onViewMedia: _actions.onViewMedia,
     onTextSelected: _actions.onTextSelected,
     onPollVote: _actions.onPollVote,
@@ -1050,16 +1618,19 @@ class _ChatViewState extends ConsumerState<ChatView> {
       items: [
         MgMenuItem(
           label: l10n.menuSendNow,
+          icon: MgIcons.send,
           onSelected: () => unawaited(
             _quiet(_conversations.sendScheduledNow(chatId, row.primary.id)),
           ),
         ),
         MgMenuItem(
           label: l10n.menuReschedule,
+          icon: MgIcons.recent,
           onSelected: () => unawaited(_rescheduleMessage(row.primary.id)),
         ),
         MgMenuItem(
           label: l10n.menuDelete,
+          icon: MgIcons.trash,
           destructive: true,
           onSelected: () =>
               unawaited(_quiet(_conversations.deleteScheduled(chatId, ids))),
@@ -1186,6 +1757,8 @@ class _ChatViewState extends ConsumerState<ChatView> {
     onInlineButton: (message, button) =>
         unawaited(_pressInlineButton(message, button)),
     onComments: (message) => unawaited(_openComments(message)),
+    onOpenForwardSource: (origin) => unawaited(_openForwardSource(origin)),
+    onOpenSender: (sender) => unawaited(_openSender(sender)),
     onMenu: (row, position) => unawaited(_showMenu(row, position)),
     onViewMedia: (message) => unawaited(
       showChatMediaViewer(
@@ -1210,7 +1783,9 @@ class _ChatViewState extends ConsumerState<ChatView> {
   /// Where the timeline starts under the header and the pinned bar.
   double get _topInset =>
       TimelineView.headerInset +
-      (_pinnedShown && !_pinnedListOpen ? PinnedBar.height + 8 : 0);
+      _translateInset +
+      (_tagsShown ? SavedTagBar.height : 0) +
+      (_pinnedShown && !_pinnedListOpen ? PinnedBar.height : 0);
 
   /// Keeps [_scroll.pinned] and the down button in step with where the
   /// user leaves the view.
@@ -1230,6 +1805,35 @@ class _ChatViewState extends ConsumerState<ChatView> {
     _away.value = !atEnd || fromBottom > 360 || _returnTo != null;
   }
 
+  /// Lets go of the newest message in a side list (comments, pinned or
+  /// scheduled messages) once the user scrolls away from it, and picks it
+  /// up again when they come back; without this the view snaps back to the
+  /// bottom and the list cannot be read upwards.
+  void _followList(TimelineScrollController controller) {
+    if (!controller.hasClients) return;
+    final position = controller.position;
+    if (!position.hasContentDimensions) return;
+    final fromBottom = position.pixels - position.minScrollExtent;
+    if (position.isScrollingNotifier.value || fromBottom < 2) {
+      controller.pinned = fromBottom < 2;
+    }
+  }
+
+  /// Rows ask for more history as they are built, but a page that came
+  /// back short or empty builds nothing new: the scroll position asks
+  /// again, so the top of a chat or of comments is never a dead end.
+  void _topUp(ScrollController controller) {
+    if (!controller.hasClients) return;
+    final position = controller.position;
+    if (!position.hasContentDimensions) return;
+    if (position.maxScrollExtent - position.pixels > 600) return;
+    if (controller == _threadScroll) {
+      unawaited(_quiet(_thread?.loadOlder() ?? Future<void>.value()));
+    } else if (!_conversations.store.reachedStart(widget.chatId)) {
+      _loadOlder();
+    }
+  }
+
   /// Scrolls to [messageId], loading the history around it when it is
   /// outside what is loaded, and lights it up. The first jump away from
   /// a place other than the bottom remembers it for the down button.
@@ -1243,7 +1847,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
       final viewport = _scroll.position.viewportDimension;
       _returnTo = TimelineView.rowAt(
         _timelineKey,
-        viewport - TimelineView.bottomInset - 4,
+        viewport - _bottomInset - 4,
       )?.messageId;
     }
     if (!store.contains(chatId, messageId)) {
@@ -1371,14 +1975,18 @@ class _ChatViewState extends ConsumerState<ChatView> {
         onQuote: (message, quote) => _reply(message, quote: quote),
         onEdit: _edit,
         onForward: (messages) => unawaited(_forward(messages)),
+        recentChats: _recentForwardTargets,
+        onForwardTo: (messages, chatId) =>
+            unawaited(_forward(messages, toChat: chatId)),
         onSelect: _select,
+        onEditHistory: _session.capture.keepEdits ? _showEditHistory : null,
       ),
     );
   }
 
   /// Starts selecting with [row], or adds it when already selecting.
   void _select(MessageRow row) {
-    if (row.primary.chatId != widget.chatId) return;
+    if (row.primary.chatId != _selectionChatId) return;
     final selected = _selected ?? <int>{};
     selected.addAll([for (final message in row.messages) message.id]);
     _setSelection(selected);
@@ -1417,11 +2025,17 @@ class _ChatViewState extends ConsumerState<ChatView> {
     if (_selected != null) _setSelection(null);
   }
 
+  /// The chat whose messages are selected: the open thread's (comments,
+  /// a topic, a Saved Messages tag) or this one.
+  int get _selectionChatId => _thread?.chatId ?? widget.chatId;
+
   /// The selected messages, oldest first.
   List<ConversationMessage> _selectedMessages() {
     final selected = _selected ?? const <int>{};
+    final shown =
+        _thread?.messages ?? _conversations.store.messagesFor(widget.chatId);
     return [
-      for (final message in _conversations.store.messagesFor(widget.chatId))
+      for (final message in shown)
         if (selected.contains(message.id)) message,
     ].reversed.toList();
   }
@@ -1429,7 +2043,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
   /// Fetches what may be done with the selection; the bar's commands
   /// enable once it is known. A change of selection meanwhile wins.
   Future<void> _loadSelectedProperties(Set<int> selected) async {
-    final chatId = widget.chatId;
+    final chatId = _selectionChatId;
     final ids = selected.toList();
     final List<td.MessageProperties> properties;
     try {
@@ -1440,7 +2054,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
       return;
     }
     if (!mounted ||
-        widget.chatId != chatId ||
+        _selectionChatId != chatId ||
         !identical(_selected, selected)) {
       return;
     }
@@ -1851,6 +2465,18 @@ class _ChatViewState extends ConsumerState<ChatView> {
   /// The id of the message whose keyboard the user hid; 0 for none.
   var _keyboardHiddenFor = 0;
 
+  /// The height of the bot keyboard and the composer together, which the
+  /// timeline makes room for; 0 until they are laid out.
+  var _bottomHeight = 0.0;
+
+  /// The height of the bot keyboard strip, which the suggestions clear.
+  var _keyboardHeight = 0.0;
+
+  /// The space the timeline leaves under its newest message: the composer
+  /// and the bot keyboard above it, with a little air.
+  double get _bottomInset =>
+      _bottomHeight > 0 ? _bottomHeight + 8 : TimelineView.composerInset;
+
   /// The bot keyboard the chat shows in place of its own, loaded when the
   /// message carrying it isn't at hand yet.
   (int, td.ReplyMarkupShowKeyboard)? _replyKeyboard(ConversationStore store) {
@@ -2009,6 +2635,16 @@ class _ChatViewState extends ConsumerState<ChatView> {
     _focus.requestFocus();
   }
 
+  /// Puts a custom emoji picked in the panel into the draft.
+  void _insertCustomEmoji(td.Sticker sticker) {
+    if (sticker.fullType case td.StickerFullTypeCustomEmoji(
+      :final customEmojiId,
+    )) {
+      _draft.insertCustomEmoji(sticker.emoji, customEmojiId);
+      _focus.requestFocus();
+    }
+  }
+
   /// Sends [sticker] at once and closes the panel, as the official apps do.
   Future<void> _sendSticker(td.Sticker sticker) async {
     final chatId = widget.chatId;
@@ -2142,25 +2778,52 @@ class _ChatViewState extends ConsumerState<ChatView> {
     }
   }
 
-  Future<void> _forward(List<ConversationMessage> messages) async {
+  /// The chats the message menu offers under Forward: the latest ones,
+  /// the open chat left out.
+  List<ChatListEntry> _recentForwardTargets() => [
+    for (final chat
+        in ref.read(chatListProvider(const ChatListLocation.main())).value ??
+            const <ChatListEntry>[])
+      if (chat.id != widget.chatId) chat,
+  ].take(6).toList();
+
+  Future<void> _forward(
+    List<ConversationMessage> messages, {
+    int? toChat,
+  }) async {
     final hasCaptions = messages.any(
       (message) =>
           message.content is! td.MessageText && message.text.isNotEmpty,
     );
-    final choice = await pickForwardTarget(context, hasCaptions: hasCaptions);
+    final choice = toChat != null
+        ? ForwardChoice(chatId: toChat, hideSender: false, hideCaptions: false)
+        : await pickForwardTarget(
+            context,
+            hasCaptions: hasCaptions,
+            multiple: true,
+          );
     if (choice == null || messages.isEmpty) return;
-    try {
-      await _conversations.forwardMessages(
-        choice.chatId,
-        messages.first.chatId,
-        [for (final message in messages) message.id],
-        hideSender: choice.hideSender,
-        hideCaptions: choice.hideCaptions,
-      );
-    } catch (_) {
-      // Such as a channel the user can't post in.
-      if (mounted) setState(() => _failure = _Failure.forward);
+    var failed = false;
+    // Each chat on its own, so one that refuses doesn't stop the rest.
+    for (final chatId in choice.chatIds) {
+      try {
+        // The comment goes first, as in Telegram, so it reads above them.
+        if (choice.comment.isNotEmpty) {
+          await _conversations.sendText(chatId, choice.comment);
+        }
+        await _conversations.forwardMessages(
+          chatId,
+          messages.first.chatId,
+          [for (final message in messages) message.id],
+          hideSender: choice.hideSender,
+          hideCaptions: choice.hideCaptions,
+        );
+      } catch (_) {
+        // Such as a channel the user can't post in.
+        failed = true;
+      }
     }
+    if (failed && mounted) setState(() => _failure = _Failure.forward);
   }
 
   var _olderScheduled = false;
@@ -2309,15 +2972,18 @@ class _ChatViewState extends ConsumerState<ChatView> {
       items: [
         MgMenuItem(
           label: l10n.sendWithoutSound,
+          icon: MgIcons.muted,
           onSelected: () => unawaited(_send(text, silent: true)),
         ),
         MgMenuItem(
           label: l10n.scheduleMessage,
+          icon: MgIcons.recent,
           onSelected: () => unawaited(_schedule(text)),
         ),
         if (_canSendWhenOnline)
           MgMenuItem(
             label: l10n.sendWhenOnline,
+            icon: MgIcons.profile,
             onSelected: () => unawaited(_sendWhenOnline(text)),
           ),
       ],
@@ -2366,6 +3032,8 @@ class _ChatViewState extends ConsumerState<ChatView> {
     bool silent = false,
     td.MessageSchedulingState? schedule,
   }) async {
+    // A click on the send button must not take the cursor with it.
+    _focus.requestFocus();
     final editing = _editing;
     // A caption may be removed; a text message can't be emptied.
     if (editing != null && (text.trim().isNotEmpty || _isCaption(editing))) {
@@ -2465,19 +3133,23 @@ class _ChatViewState extends ConsumerState<ChatView> {
       items: [
         MgMenuItem(
           label: l10n.attachFile,
+          icon: MgIcons.file,
           onSelected: () => unawaited(_chooseFiles()),
         ),
         if (canPoll)
           MgMenuItem(
             label: l10n.attachPoll,
+            icon: MgIcons.poll,
             onSelected: () => unawaited(_createPoll()),
           ),
         MgMenuItem(
           label: l10n.attachLocation,
+          icon: MgIcons.location,
           onSelected: () => unawaited(_sendLocation()),
         ),
         MgMenuItem(
           label: l10n.attachContact,
+          icon: MgIcons.profile,
           onSelected: () => unawaited(_sendContact()),
         ),
       ],
@@ -2785,12 +3457,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
             !fitsAsPhoto(width: size.$1, height: size.$2, bytes: bytes)) {
           return OutgoingFile(path: file.path, kind: OutgoingKind.document);
         }
-        return OutgoingFile(
-          path: file.path,
-          kind: file.kind,
-          width: size.$1,
-          height: size.$2,
-        );
+        return file.copyWith(width: size.$1, height: size.$2);
       case OutgoingKind.video || OutgoingKind.animation || OutgoingKind.audio:
         // An edited video arrives measured by the editor.
         if (file.duration > 0) return file;
@@ -2832,6 +3499,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
     final editing = _editing;
     if (editing != null) {
       return ComposerContextBar(
+        icon: MgIcons.edit,
         title: l10n.editingMessage,
         text: describeContent(l10n, editing.content),
         closeTooltip: l10n.close,
@@ -3055,7 +3723,9 @@ class _ChatViewState extends ConsumerState<ChatView> {
 
   @override
   Widget build(BuildContext context) {
+    final wasOnScreen = _onScreen;
     _onScreen = TickerMode.valuesOf(context).enabled;
+    if (_onScreen && !wasOnScreen) _focusComposer();
     // A jump or a page of history moves the view without a scroll event.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _followScroll();
@@ -3083,6 +3753,10 @@ class _ChatViewState extends ConsumerState<ChatView> {
       });
     }
 
+    final keyboardPanel = _selected == null && !_listOpen
+        ? _replyKeyboardPanel(store)
+        : null;
+    final translateBar = _translateBar(l10n, messages.value);
     final view = DropTarget(
       onDragEntered: (_) => setState(() => _dragging = true),
       onDragExited: (_) => setState(() => _dragging = false),
@@ -3104,7 +3778,17 @@ class _ChatViewState extends ConsumerState<ChatView> {
                 _savedTopicsView(store),
               AsyncData(value: final list)
                   when list.isEmpty && store.reachedStart(widget.chatId) =>
-                Center(child: DatePill(l10n.noMessages)),
+                // Over a picture the pill keeps the note legible; on the
+                // plain card or a soft gradient it would read as an alert.
+                ref.watch(
+                      preferencesProvider.select(
+                        (p) =>
+                            p.wallpaperKind == WallpaperKind.image &&
+                            p.wallpaperImage != null,
+                      ),
+                    )
+                    ? Center(child: DatePill(l10n.noMessages))
+                    : MgEmptyState(l10n.noMessages),
               AsyncData() when _thread != null => TimelineView(
                 key: const ValueKey('commentsThread'),
                 messages: _thread!.messages,
@@ -3117,6 +3801,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                     unawaited(_quiet(_thread!.view([message.id]))),
                 onNearTop: () => unawaited(_quiet(_thread!.loadOlder())),
                 onNearBottom: () {},
+                selection: _selected,
                 actions: _threadActions,
               ),
               AsyncData() when _scheduledOpen => TimelineView(
@@ -3149,7 +3834,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                 _placeUnread(list);
                 return TimelineView(
                   key: _timelineKey,
-                  messages: list,
+                  messages: _withDeleted(list, store),
                   store: store,
                   chatId: widget.chatId,
                   isGroup: chat?.isGroup ?? false,
@@ -3159,6 +3844,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
                   flashId: _flashId,
                   flash: _flash,
                   topInset: _topInset,
+                  bottomInset: _bottomInset,
                   selection: _selected,
                   onDateTap: (day, position) =>
                       unawaited(_openCalendar(day, position)),
@@ -3171,18 +3857,35 @@ class _ChatViewState extends ConsumerState<ChatView> {
               _ => const SizedBox.shrink(),
             },
           ),
+          if (translateBar != null)
+            Positioned(
+              top: ChatHeaderBar.height,
+              left: 0,
+              right: 0,
+              child: translateBar,
+            ),
+          if (_tagBar(l10n) case final bar?)
+            Positioned(
+              top: ChatHeaderBar.height + _translateInset,
+              left: 0,
+              right: 0,
+              child: bar,
+            ),
           if (!_listOpen)
             if (_pinnedBar(l10n, store) case final bar?)
               Positioned(
-                top: 10 + ChatHeaderBar.height + 8,
-                left: 14,
-                right: 14,
+                top:
+                    ChatHeaderBar.height +
+                    _translateInset +
+                    (_tagsShown ? SavedTagBar.height : 0),
+                left: 0,
+                right: 0,
                 child: bar,
               ),
           Positioned(
-            top: 10,
-            left: 14,
-            right: 14,
+            top: 0,
+            left: 0,
+            right: 0,
             child: ChatHeaderBar(
               title: _searching
                   ? SizedBox(
@@ -3225,7 +3928,9 @@ class _ChatViewState extends ConsumerState<ChatView> {
                               : l10n.commentCount(_thread!.replyCount)),
                       avatar: MgIconButton(
                         icon: MgIcons.back,
-                        tooltip: _thread!.isStandalone
+                        tooltip: _thread!.isSavedTag
+                            ? l10n.savedAllMessages
+                            : _thread!.isStandalone
                             ? l10n.backToTopics
                             : l10n.backToChat,
                         onPressed: _closeThread,
@@ -3254,8 +3959,8 @@ class _ChatViewState extends ConsumerState<ChatView> {
                       ),
                       onTap: _closePinnedList,
                     )
-                  : ChatTitleCapsule(
-                      title: chat?.title ?? '',
+                  : ChatHeaderTitle(
+                      chatId: widget.chatId,
                       titleIcon: secret == null ? null : const SecretChatLock(),
                       avatar: _saved
                           ? MgIconButton(
@@ -3265,7 +3970,11 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                   : l10n.savedShowAsChats,
                               onPressed: _toggleSaved,
                             )
-                          : null,
+                          : PeerAvatar.chat(
+                              name: chat?.title ?? '',
+                              size: 32,
+                              photo: chat?.photo,
+                            ),
                       subtitle: secret == null
                           ? ''
                           : secretChatStatusText(
@@ -3276,150 +3985,238 @@ class _ChatViewState extends ConsumerState<ChatView> {
                                 '',
                       onTap: () => togglePeerInfo(ref, widget.chatId),
                     ),
-              actions: AudioPlayerCapsule(chatId: widget.chatId),
+              actions: LayoutBuilder(
+                // A narrow pane leaves the room to the player; search stays
+                // on ⌘F and info on a click on the title.
+                builder: (context, header) => ChatActionsCapsule(
+                  children: [
+                    AudioPlayerCapsule(chatId: widget.chatId),
+                    if (header.maxWidth >= 640 &&
+                        !_searching &&
+                        _thread == null &&
+                        !_scheduledOpen &&
+                        !_pinnedListOpen &&
+                        !_savedOpen &&
+                        !_forum) ...[
+                      MgIconButton(
+                        icon: MgIcons.search,
+                        tooltip: l10n.searchInChat,
+                        size: 28,
+                        onPressed: _openSearch,
+                      ),
+                      MgIconButton(
+                        icon: MgIcons.panel,
+                        tooltip: l10n.peerInfo,
+                        size: 28,
+                        onPressed: () => togglePeerInfo(ref, widget.chatId),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
               fill: const WindowDragArea(),
             ),
           ),
           Positioned(
-            left: 24,
-            right: 24,
-            bottom: 12,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!_panelOpen && !_listOpen) _jumpButtons(l10n, store),
-                if (store.slowModeUntil(widget.chatId) case final until?)
-                  SlowModeNotice(
-                    key: ValueKey(until),
-                    until: until,
-                    label: l10n.slowModeWait,
-                  ),
-                if (_failure case final failure?)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      switch (failure) {
-                        _Failure.send => l10n.sendFailed,
-                        _Failure.edit => l10n.editFailed,
-                        _Failure.attach => l10n.attachFailed,
-                        _Failure.forward => l10n.forwardFailed,
-                        _Failure.chatAction => l10n.chatActionFailed,
-                      },
-                      textAlign: TextAlign.center,
-                      style: mgTextStyle(
-                        c,
-                        size: MgType.small,
-                        color: MessageMeta.failedColor,
-                      ),
-                    ),
-                  ),
-                if (_selected == null &&
-                    !_listOpen &&
-                    !_panelOpen &&
-                    _editing == null &&
-                    _stickerHints.stickers.isNotEmpty)
-                  StickerSuggestionStrip(
-                    stickers: _stickerHints.stickers,
-                    onPick: (sticker) =>
-                        unawaited(_sendSuggestedSticker(sticker)),
-                  ),
-                if (_selected == null &&
-                    !_listOpen &&
-                    !_panelOpen &&
-                    _editing == null &&
-                    _inline.active)
-                  InlineResultsPanel(
-                    results: _inline.results,
-                    loading: _inline.loading,
-                    onPick: (result) => unawaited(_sendInlineResult(result)),
-                    onMore: _inline.hasMore
-                        ? () => unawaited(_inline.loadMore())
-                        : null,
-                  ),
-                if (_selected == null && !_listOpen)
-                  ?_replyKeyboardPanel(store),
-                if (_panelOpen)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: TapRegion(
-                        groupId: _EmojiPanelRegion,
-                        onTapOutside: (_) => _closePanel(),
-                        child: EmojiStickerPanel(
-                          height: (MediaQuery.sizeOf(context).height - 220)
-                              .clamp(220, 400),
-                          onEmoji: _insertEmoji,
-                          onSticker: (sticker) =>
-                              unawaited(_sendSticker(sticker)),
-                          onGif: (gif) => unawaited(_sendAnimation(gif)),
-                          onClose: _closePanel,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!_panelOpen && !_listOpen) _jumpButtons(l10n, store),
+                      if (store.slowModeUntil(widget.chatId) case final until?)
+                        SlowModeNotice(
+                          key: ValueKey(until),
+                          until: until,
+                          label: l10n.slowModeWait,
                         ),
-                      ),
-                    ),
-                  ),
-                ?_sponsoredCard(store),
-                if (_thread case final thread?)
-                  _threadComposer(l10n, thread)
-                else if (_forum || _savedOpen)
-                  const SizedBox.shrink()
-                else if (_scheduledOpen)
-                  _scheduledBar(l10n)
-                else if (_pinnedListOpen)
-                  _unpinAllBar(l10n, store)
-                else if (_selected != null)
-                  _selectionBar(l10n)
-                else if (secret?.status == SecretChatStatus.closed)
-                  SecretChatClosedBar(chatId: widget.chatId)
-                else if (_actionBar(l10n, store) case final bar?)
-                  bar
-                else
-                  TapRegion(
-                    groupId: _EmojiPanelRegion,
-                    child: VoiceRecordComposer(
-                      onRecorded: _sendVoice,
-                      onRecordedVideo: _sendVideoNote,
-                      builder: (context, recordButton, recordingBar) =>
-                          Composer(
-                            suggestions: _suggester.suggestions,
-                            onSuggestion: _suggester.pick,
-                            onDismissSuggestions: _suggester.dismiss,
-                            controller: _draft,
-                            focusNode: _focus,
-                            header: _composerHeader(l10n),
-                            onCancel:
-                                _panelOpen ||
-                                    _editing != null ||
-                                    _replyTo != null
-                                ? _cancel
-                                : null,
-                            onEditLast: () => unawaited(_editLast()),
-                            onAttachMenu: (position) =>
-                                unawaited(_attachMenu(position)),
-                            onEmoji: _togglePanel,
-                            leading:
-                                _botMenuButton(l10n, store) ??
-                                _sendAsButton(store),
-                            extraButton: _composerExtras(l10n, store),
-                            onPaste: _paste,
-                            allowEmpty:
-                                _editing != null && _isCaption(_editing!),
-                            labels: ComposerLabels(
-                              hint: l10n.messageHint,
-                              attach: l10n.attach,
-                              emoji: l10n.emoji,
-                              record: l10n.record,
-                              send: l10n.send,
-                              format: formatLabelsOf(l10n),
+                      if (_failure case final failure?)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Text(
+                            switch (failure) {
+                              _Failure.send => l10n.sendFailed,
+                              _Failure.edit => l10n.editFailed,
+                              _Failure.attach => l10n.attachFailed,
+                              _Failure.forward => l10n.forwardFailed,
+                              _Failure.chatAction => l10n.chatActionFailed,
+                            },
+                            textAlign: TextAlign.center,
+                            style: mgTextStyle(
+                              c,
+                              size: MgType.small,
+                              color: MessageMeta.failedColor,
                             ),
-                            onSend: (text) => unawaited(_send(text)),
-                            onSendMenu: (text, position) =>
-                                unawaited(_sendMenu(text, position)),
-                            recordButton: recordButton,
-                            replacement: recordingBar,
                           ),
-                    ),
+                        ),
+                      if (_selected == null &&
+                          !_listOpen &&
+                          !_panelOpen &&
+                          _editing == null &&
+                          _stickerHints.stickers.isNotEmpty)
+                        StickerSuggestionStrip(
+                          stickers: _stickerHints.stickers,
+                          onPick: (sticker) =>
+                              unawaited(_sendSuggestedSticker(sticker)),
+                        ),
+                      if (_selected == null &&
+                          !_listOpen &&
+                          !_panelOpen &&
+                          _editing == null &&
+                          _inline.active)
+                        InlineResultsPanel(
+                          results: _inline.results,
+                          loading: _inline.loading,
+                          onPick: (result) =>
+                              unawaited(_sendInlineResult(result)),
+                          onMore: _inline.hasMore
+                              ? () => unawaited(_inline.loadMore())
+                              : null,
+                        ),
+                      if (_panelOpen)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: TapRegion(
+                              groupId: _EmojiPanelRegion,
+                              onTapOutside: (_) => _closePanel(),
+                              child: EmojiStickerPanel(
+                                height:
+                                    (MediaQuery.sizeOf(context).height - 220)
+                                        .clamp(220, 400),
+                                onEmoji: _insertEmoji,
+                                onCustomEmoji: _insertCustomEmoji,
+                                onSticker: (sticker) =>
+                                    unawaited(_sendSticker(sticker)),
+                                onGif: (gif) => unawaited(_sendAnimation(gif)),
+                                onClose: _closePanel,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ?_sponsoredCard(store),
+                    ],
                   ),
+                ),
+                // The bot keyboard and the composer: measured together, so
+                // the timeline leaves room for whatever they grow to.
+                Measured(
+                  onSize: (size) {
+                    if (mounted && size.height != _bottomHeight) {
+                      setState(() => _bottomHeight = size.height);
+                    }
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // A bot's keyboard is a solid strip above the composer, so
+                      // messages never scroll through the gaps between buttons.
+                      if (keyboardPanel != null)
+                        Measured(
+                          onSize: (size) {
+                            if (mounted && size.height != _keyboardHeight) {
+                              setState(() => _keyboardHeight = size.height);
+                            }
+                          },
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: c.solid(c.card),
+                              border: Border(
+                                top: BorderSide(color: c.separator, width: 0.5),
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                              child: keyboardPanel,
+                            ),
+                          ),
+                        ),
+                      // The composer is the card's own bottom edge; the other
+                      // bars still float over the messages.
+                      if (_thread case final thread? when _selected == null)
+                        _threadComposer(l10n, thread)
+                      else if (_thread != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                          child: _selectionBar(l10n),
+                        )
+                      else if (_forum || _savedOpen)
+                        const SizedBox.shrink()
+                      else if (switch (null) {
+                            _ when _scheduledOpen => _scheduledBar(l10n),
+                            _ when _pinnedListOpen => _unpinAllBar(l10n, store),
+                            _ when _selected != null => _selectionBar(l10n),
+                            _ when secret?.status == SecretChatStatus.closed =>
+                              SecretChatClosedBar(chatId: widget.chatId),
+                            _ => _actionBar(l10n, store),
+                          }
+                          case final bar?)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                          child: bar,
+                        )
+                      else
+                        TapRegion(
+                          groupId: _EmojiPanelRegion,
+                          child: VoiceRecordComposer(
+                            onRecorded: _sendVoice,
+                            onRecordedVideo: _sendVideoNote,
+                            builder: (context, recordButton, recordingBar) =>
+                                Composer(
+                                  suggestionsLift: keyboardPanel == null
+                                      ? 0
+                                      : _keyboardHeight,
+                                  suggestions: _suggester.suggestions,
+                                  onSuggestion: _suggester.pick,
+                                  onDismissSuggestions: _suggester.dismiss,
+                                  controller: _draft,
+                                  focusNode: _focus,
+                                  header: _composerHeader(l10n),
+                                  onCancel:
+                                      _panelOpen ||
+                                          _editing != null ||
+                                          _replyTo != null
+                                      ? _cancel
+                                      : null,
+                                  onEditLast: () => unawaited(_editLast()),
+                                  onAttachMenu: (position) =>
+                                      unawaited(_attachMenu(position)),
+                                  onEmoji: _togglePanel,
+                                  leading:
+                                      _botMenuButton(l10n, store) ??
+                                      _sendAsButton(store),
+                                  extraButton: _composerExtras(l10n, store),
+                                  onPaste: _paste,
+                                  allowEmpty:
+                                      _editing != null && _isCaption(_editing!),
+                                  labels: ComposerLabels(
+                                    hint: l10n.messageHint,
+                                    attach: l10n.attach,
+                                    emoji: l10n.emoji,
+                                    record: l10n.record,
+                                    send: l10n.send,
+                                    format: formatLabelsOf(l10n),
+                                  ),
+                                  onSend: (text) => unawaited(_send(text)),
+                                  onSendMenu: (text, position) =>
+                                      unawaited(_sendMenu(text, position)),
+                                  recordButton: recordButton,
+                                  replacement: recordingBar,
+                                ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -3443,7 +4240,15 @@ class _ChatViewState extends ConsumerState<ChatView> {
     );
     return CallbackShortcuts(
       bindings: {primaryShortcut(LogicalKeyboardKey.keyF): _openSearch},
-      child: view,
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _claimFocus(),
+        child: Focus(
+          focusNode: _area,
+          onKeyEvent: _typeToComposer,
+          child: ChatTranslationScope(translation: _translation, child: view),
+        ),
+      ),
     );
   }
 }

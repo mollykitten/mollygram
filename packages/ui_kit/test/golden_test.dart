@@ -4,6 +4,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mollygram_ui_kit/mollygram_ui_kit.dart';
@@ -34,112 +35,110 @@ class _Window extends StatelessWidget {
       blur: blur,
       child: Stack(
         children: [
-          const Positioned.fill(child: Wallpaper()),
+          Positioned.fill(child: ColoredBox(color: MgColors.of(context).frame)),
           Positioned(
-            left: SidebarIsland.width + 16,
-            right: 0,
-            top: 0,
-            bottom: 0,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(24, 72, 24, 88),
-                    children: const [
-                      DatePill('Today'),
-                      _Row(
-                        out: false,
-                        child: TextMessageBubble(
-                          text: 'Did the new build land on your Mac?',
+            left: SidebarIsland.width,
+            right: SidebarIsland.topInset,
+            top: SidebarIsland.topInset,
+            bottom: SidebarIsland.topInset,
+            child: ChatCard(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(28, 70, 28, 64),
+                      children: const [
+                        DatePill('Today'),
+                        _Flat(
+                          name: 'Anna Petrova',
                           time: '21:04',
-                          outgoing: false,
+                          lines: ['Did the new build land on your Mac?'],
                         ),
-                      ),
-                      _Row(
-                        out: true,
-                        child: TextMessageBubble(
-                          text: 'Yes, it opens instantly now',
+                        _Flat(
+                          name: 'You',
                           time: '21:10',
-                          outgoing: true,
-                          status: MessageStatus.read,
+                          lines: [
+                            'Yes, it opens instantly now',
+                            'and the list keeps up while it scrolls',
+                          ],
                         ),
-                      ),
-                      _Row(
-                        out: true,
-                        child: TextMessageBubble(
-                          text: 'wrong chat',
-                          time: '21:11',
-                          outgoing: true,
-                          status: MessageStatus.sent,
-                          label: 'deleted',
-                          dimmed: true,
-                        ),
-                      ),
-                      _Row(
-                        out: false,
-                        child: TextMessageBubble(
-                          text:
-                              'A longer message that wraps onto a second line '
-                              'so the time has to sit next to its last word.',
+                        _Flat(
+                          name: 'Anna Petrova',
                           time: '21:12',
-                          outgoing: false,
-                          label: 'edited',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  top: 10,
-                  left: 14,
-                  right: 14,
-                  child: ChatHeaderBar(
-                    title: const ChatTitleCapsule(
-                      title: 'Anna Petrova',
-                      subtitle: 'online',
-                    ),
-                    actions: ChatActionsCapsule(
-                      children: [
-                        MgIconButton(
-                          icon: MgIcons.search,
-                          tooltip: 'Search in chat',
-                          onPressed: () {},
-                        ),
-                        MgIconButton(
-                          icon: MgIcons.call,
-                          tooltip: 'Call',
-                          onPressed: () {},
-                        ),
-                        MgIconButton(
-                          icon: MgIcons.ghost,
-                          tooltip: 'Ghost mode',
-                          selected: true,
-                          onPressed: () {},
-                        ),
-                        MgIconButton(
-                          icon: MgIcons.panel,
-                          tooltip: 'Chat info',
-                          onPressed: () {},
+                          lines: [
+                            'A longer message that wraps onto a second line '
+                                'so the reader sees how text flows in the card.',
+                          ],
                         ),
                       ],
                     ),
                   ),
-                ),
-                const Positioned(
-                  left: 24,
-                  right: 24,
-                  bottom: 12,
-                  child: Composer(labels: _labels),
-                ),
-              ],
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: ChatHeaderBar(
+                      title: const ChatTitleCapsule(
+                        title: 'Anna Petrova',
+                        subtitle: 'online',
+                        subtitleAccent: true,
+                      ),
+                      actions: ChatActionsCapsule(
+                        children: [
+                          MgIconButton(
+                            icon: MgIcons.search,
+                            tooltip: 'Search in chat',
+                            onPressed: () {},
+                          ),
+                          MgIconButton(
+                            icon: MgIcons.call,
+                            tooltip: 'Call',
+                            onPressed: () {},
+                          ),
+                          MgIconButton(
+                            icon: MgIcons.ghost,
+                            tooltip: 'Ghost mode',
+                            selected: true,
+                            onPressed: () {},
+                          ),
+                          MgIconButton(
+                            icon: MgIcons.panel,
+                            tooltip: 'Chat info',
+                            onPressed: () {},
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Composer(labels: _labels),
+                  ),
+                ],
+              ),
             ),
           ),
           Positioned(
-            left: 8,
-            top: 8,
-            bottom: 8,
+            left: 0,
+            top: 0,
+            bottom: 0,
             width: SidebarIsland.width,
             child: SidebarIsland(
+              folders: const FolderSegments(
+                selected: 0,
+                segments: [
+                  FolderSegment(label: 'All', icon: MgIcons.list),
+                  FolderSegment(
+                    label: 'Personal',
+                    icon: MgIcons.profile,
+                    count: 2,
+                  ),
+                  FolderSegment(label: 'Work', icon: MgIcons.group, count: 3),
+                  FolderSegment(label: 'Channels', icon: MgIcons.channel),
+                ],
+              ),
               actions: [
                 MgIconButton(
                   icon: MgIcons.compose,
@@ -148,39 +147,65 @@ class _Window extends StatelessWidget {
                 ),
               ],
               search: const MgSearchField(hintText: 'Search'),
-              folders: const FolderTabBar(
-                children: [
-                  FolderTab(label: 'All', selected: true),
-                  FolderTab(label: 'Personal', count: 2),
-                  FolderTab(label: 'Work', count: 3),
-                  FolderTab(label: 'Channels'),
-                ],
-              ),
               body: ListView(
                 padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
                 children: const [
                   ChatListTile(
                     title: 'Anna Petrova',
-                    subtitle: 'Yes, it opens instantly now',
+                    sender: 'You',
+                    subtitle:
+                        'yes, it opens instantly now, and the '
+                        'list keeps up while it scrolls',
                     time: '21:10',
+                    status: MessageStatus.read,
                     selected: true,
-                    unread: 1,
+                    online: true,
+                    pinned: true,
                   ),
                   ChatListTile(
                     title: 'Design',
-                    subtitle: 'Mark: pushed the new icons',
+                    subtitle: 'pushed the new icons',
+                    kind: ChatRowKind.group,
+                    sender: 'Mark',
+                    senderAvatar: MonogramAvatar(name: 'Mark', size: 15),
                     time: '20:41',
                     unread: 12,
+                    mentions: true,
+                    pinned: true,
+                  ),
+                  ChatListTile(
+                    title: 'Mark',
+                    subtitle: '',
+                    activity: 'typing',
+                    time: '20:30',
+                    online: true,
+                    reactions: true,
                   ),
                   ChatListTile(
                     title: 'Flutter Desktop',
-                    subtitle: 'Release notes are out',
+                    kind: ChatRowKind.channel,
+                    subtitle:
+                        'Release notes are out: what is new in the desktop '
+                        'embedder this month',
+                    verified: true,
                     time: '18:02',
                     unread: 1234,
                     unreadLabel: '1.2K',
                     muted: true,
                   ),
-                  ChatListTile(title: 'Ilya', subtitle: 'ok', time: 'Mon'),
+                  ChatListTile(
+                    title: 'Vera',
+                    subtitle: 'Photo',
+                    time: 'Tue',
+                    secret: true,
+                    markedUnread: true,
+                  ),
+                  ChatListTile(
+                    title: 'Ilya',
+                    subtitle: 'ok',
+                    time: 'Mon',
+                    status: MessageStatus.sent,
+                  ),
                 ],
               ),
             ),
@@ -191,20 +216,49 @@ class _Window extends StatelessWidget {
   }
 }
 
-class _Row extends StatelessWidget {
-  const _Row({required this.out, required this.child});
+/// A flat message run as the app's timeline draws it.
+class _Flat extends StatelessWidget {
+  const _Flat({required this.name, required this.time, required this.lines});
 
-  final bool out;
-  final Widget child;
+  final String name;
+  final String time;
+  final List<String> lines;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 6, bottom: 4),
-    child: Align(
-      alignment: out ? Alignment.centerRight : Alignment.centerLeft,
-      child: child,
-    ),
-  );
+  Widget build(BuildContext context) {
+    final c = MgColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          MonogramAvatar(name: name, size: 32),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: mgTextStyle(c, weight: FontWeight.w600, height: 1.35),
+                ),
+                for (final line in lines)
+                  Text(
+                    line,
+                    style: mgTextStyle(c, size: MgType.message, height: 1.35),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Text(time, style: MessageMeta.styleOf(c)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 Future<void> _shoot(
@@ -563,6 +617,85 @@ void main() {
       );
     });
 
+    testWidgets('selection menu $theme', skip: _skip, (tester) async {
+      tester.view.physicalSize = const Size(420, 300);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      Widget letter(BuildContext context, String v, Color c) =>
+          selectionLetter(context, v, c, weight: FontWeight.w800);
+      await tester.pumpWidget(
+        themed(
+          Stack(
+            children: [
+              const Positioned.fill(child: Wallpaper()),
+              Builder(
+                builder: (context) => SelectionMenu(
+                  anchors: const TextSelectionToolbarAnchors(
+                    primaryAnchor: Offset(80, 40),
+                    secondaryAnchor: Offset(80, 60),
+                  ),
+                  formats: [
+                    SelectionFormatButton(
+                      glyph: (c) => letter(context, 'B', c),
+                      tooltip: 'Bold',
+                      active: true,
+                      onPressed: () {},
+                    ),
+                    for (final icon in [
+                      MgIcons.quote,
+                      MgIcons.link,
+                      MgIcons.edit,
+                      MgIcons.copy,
+                      MgIcons.reply,
+                      MgIcons.select,
+                      MgIcons.forward,
+                    ])
+                      SelectionFormatButton(
+                        glyph: (c) => selectionIcon(icon, c),
+                        tooltip: 'Format',
+                        active: false,
+                        onPressed: () {},
+                      ),
+                  ],
+                  commands: [
+                    SelectionCommand(
+                      label: 'Cut',
+                      shortcut: '\u2318X',
+                      onPressed: () {},
+                    ),
+                    SelectionCommand(
+                      label: 'Copy',
+                      shortcut: '\u2318C',
+                      onPressed: () {},
+                    ),
+                    SelectionCommand(
+                      label: 'Paste',
+                      shortcut: '\u2318V',
+                      onPressed: () {},
+                    ),
+                    SelectionCommand(
+                      label: 'Select all',
+                      shortcut: '\u2318A',
+                      onPressed: () {},
+                    ),
+                  ],
+                  extra: [
+                    SelectionCommand(label: 'Plain text', onPressed: () {}),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          colors: colors,
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/selection_menu_$theme.png'),
+      );
+    });
+
     testWidgets('message menu $theme', skip: _skip, (tester) async {
       tester.view.physicalSize = const Size(640, 420);
       tester.view.devicePixelRatio = 1;
@@ -602,11 +735,24 @@ void main() {
             onPick: (_) {},
           ),
           items: [
-            MgMenuItem(label: 'Reply', onSelected: () {}),
-            MgMenuItem(label: 'Edit', onSelected: () {}),
-            MgMenuItem(label: 'Copy text', onSelected: () {}),
-            MgMenuItem(label: 'Forward', onSelected: () {}),
-            MgMenuItem(label: 'Delete', destructive: true, onSelected: () {}),
+            MgMenuItem(label: 'Reply', icon: MgIcons.reply, onSelected: () {}),
+            MgMenuItem(label: 'Edit', icon: MgIcons.edit, onSelected: () {}),
+            MgMenuItem(
+              label: 'Copy text',
+              icon: MgIcons.copy,
+              onSelected: () {},
+            ),
+            MgMenuItem(
+              label: 'Forward',
+              icon: MgIcons.forward,
+              onSelected: () {},
+            ),
+            MgMenuItem(
+              label: 'Delete',
+              icon: MgIcons.trash,
+              destructive: true,
+              onSelected: () {},
+            ),
           ],
         ),
       );
@@ -623,9 +769,116 @@ void main() {
         ),
       );
       await tester.pump();
+      // The alert fades and grows in.
+      await tester.pump(MgMotion.standard);
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_menu_$theme.png'),
+      );
+    });
+
+    testWidgets('context menu $theme', skip: _skip, (tester) async {
+      tester.view.physicalSize = const Size(440, 400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(themed(const Wallpaper(), colors: colors));
+      final context = tester.element(find.byType(Wallpaper));
+      MgMenuItem row(String label, MgIconData icon) =>
+          MgMenuItem(label: label, icon: icon, onSelected: () {});
+      unawaited(
+        showMgMenu(
+          context,
+          position: const Offset(100, 40),
+          header: ReactionBar(
+            reactions: const ['a', 'b', 'c', 'd', 'e', 'f'],
+            onPick: (_) {},
+            onMore: () {},
+          ),
+          items: [
+            row('Reply', MgIcons.reply),
+            row('Copy text', MgIcons.copy),
+            row('Copy link', MgIcons.link),
+            const MgMenuItem.divider(),
+            row('Forward', MgIcons.forward),
+            row('Pin', MgIcons.pinOutline),
+            row('Select', MgIcons.select),
+            const MgMenuItem.divider(),
+            row('Edit', MgIcons.edit),
+            MgMenuItem(
+              label: 'Delete',
+              icon: MgIcons.trash,
+              destructive: true,
+              onSelected: () {},
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(find.text('Forward')));
+      await tester.pump();
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/context_menu_$theme.png'),
+      );
+    });
+
+    testWidgets('dropdown $theme', skip: _skip, (tester) async {
+      tester.view.physicalSize = const Size(420, 300);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        themed(
+          const Stack(
+            children: [
+              Positioned.fill(child: Wallpaper()),
+              Positioned(
+                right: 16,
+                top: 16,
+                child: SizedBox(width: 28, height: 28),
+              ),
+            ],
+          ),
+          colors: colors,
+        ),
+      );
+      final context = tester.element(find.byType(Wallpaper));
+      unawaited(
+        showMgDropdown(
+          context,
+          anchor: const Rect.fromLTWH(376, 16, 28, 28),
+          items: [
+            MgMenuItem(
+              label: 'View info',
+              icon: MgIcons.profile,
+              onSelected: () {},
+            ),
+            MgMenuItem(
+              label: 'Search',
+              icon: MgIcons.search,
+              onSelected: () {},
+            ),
+            MgMenuItem(
+              label: 'Mute',
+              icon: MgIcons.muted,
+              submenu: [MgMenuItem(label: '1 hour', onSelected: () {})],
+            ),
+            const MgMenuItem.divider(),
+            MgMenuItem(
+              label: 'Leave group',
+              icon: MgIcons.trash,
+              destructive: true,
+              onSelected: () {},
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/dropdown_$theme.png'),
       );
     });
   }
