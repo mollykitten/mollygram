@@ -30,6 +30,9 @@ import 'chat_view.dart';
 import 'sidebar.dart';
 import 'workspace.dart';
 
+/// The macOS runner sends the app menu's items here (AppDelegate.swift).
+const appMenuChannel = MethodChannel('mollygram/app_menu');
+
 /// The signed-in window: the tinted frame with the sidebar lying on it and
 /// the workspace (tabs, one or two chat panes, each on its own [ChatCard],
 /// the ⌘K palette). [GlassScope] gives all glass panels one shared
@@ -103,6 +106,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ..register('shell', _shellCommands)
       ..registerShortcuts('shell', _shellShortcuts)
       ..addListener(_keysChanged);
+    appMenuChannel.setMethodCallHandler(_appMenu);
+  }
+
+  /// The runner's menu bar: "Settings…" in the app menu.
+  Future<void> _appMenu(MethodCall call) async {
+    switch (call.method) {
+      case 'openSettings':
+        _openSettings();
+      default:
+        throw MissingPluginException();
+    }
   }
 
   /// The user changed a key: the bindings are built again.
@@ -119,6 +133,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   void dispose() {
+    appMenuChannel.setMethodCallHandler(null);
     _registry
       ..removeListener(_keysChanged)
       ..unregister('app', _commands)
@@ -234,6 +249,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     Positioned.fill(
                       child: Sidebar(
                         onSettings: _openSettings,
+                        settingsShortcut: keys['app.settings']?.label,
                         onPrivacy: () => _openSettings(privacyExtrasSectionId),
                         onNewMessage: _newMessage,
                       ),
