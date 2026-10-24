@@ -119,6 +119,8 @@ Releases are automated with [release-please](https://github.com/googleapis/relea
 
 Do not edit `CHANGELOG.md` or version numbers by hand; write a good commit message instead.
 
+Before the first app release, keep [`.release-please-manifest.json`](.release-please-manifest.json) empty (`{}`): it tracks released versions, not the development version in `pubspec.yaml`. The [`initial-version` setting](release-please-config.json) selects `0.1.0` for the first release PR; leave the app's `0.1.0+1` development version unchanged until that PR updates it. This is release-please's documented [manual bootstrap](https://github.com/googleapis/release-please/blob/main/docs/manifest-releaser.md#bootstrap-manually). Once the first release PR is merged, release-please owns the manifest too.
+
 ## Plugins
 
 The plugin API and manifest format are documented in [`docs/plugins.md`](docs/plugins.md). Changes to the plugin SDK are part of the public API: mark breaking ones with `!`.
