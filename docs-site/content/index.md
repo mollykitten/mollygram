@@ -11,7 +11,7 @@ hide:
 
 # Documentation
 
-Mollygram is a desktop Telegram client, macOS now, Windows and Linux next: native, fast and private by default. These pages describe how its plugins, privacy store and calls work, and where the project is going.
+Mollygram is an open source Telegram client written in Flutter on top of TDLib. It runs on macOS now, with Windows and Linux after. This site holds the plugin spec, the encrypted store, call research and the roadmap.
 
 <div class="mg-actions">
   <a class="mg-btn" href="https://mollygram.dev">mollygram.dev</a>
@@ -20,15 +20,15 @@ Mollygram is a desktop Telegram client, macOS now, Windows and Linux next: nativ
 </div>
 
 <div class="mg-cards">
-  <a class="mg-card" href="plugins/"><strong>Plugins</strong><span>The plugin specification: manifest, permissions, the <code>mg</code> API and the sandbox.</span></a>
-  <a class="mg-card" href="privacy-store/"><strong>Privacy store</strong><span>How saved deleted messages and edit history live in the encrypted local store.</span></a>
-  <a class="mg-card" href="calls/"><strong>Calls</strong><span>Research and design for 1:1 audio and video calls and screen sharing.</span></a>
-  <a class="mg-card" href="roadmap/"><strong>Roadmap</strong><span>The order of work: milestones, status and what each one has to prove.</span></a>
+  <a class="mg-card" href="plugins/"><strong>Plugins</strong><span>Plugin spec v1.1: manifest, permissions, the <code>mg</code> API.</span></a>
+  <a class="mg-card" href="privacy-store/"><strong>Privacy store</strong><span>Encrypted local store for deleted messages and edit history.</span></a>
+  <a class="mg-card" href="calls/"><strong>Calls</strong><span>Research for 1:1 audio and video calls and screen sharing.</span></a>
+  <a class="mg-card" href="roadmap/"><strong>Roadmap</strong><span>Milestones with their status and exit criteria.</span></a>
 </div>
 
 <p class="mg-dev-title">For developers</p>
 
 <div class="mg-cards">
-  <a class="mg-card" href="parity/"><strong>Parity</strong><span>The per-feature backlog compared with the official clients.</span></a>
-  <a class="mg-card" href="forks-research/"><strong>Forks research</strong><span>What other Telegram forks do and which of it we take.</span></a>
+  <a class="mg-card" href="parity/"><strong>Parity</strong><span>Per-feature backlog against the official macOS client.</span></a>
+  <a class="mg-card" href="forks-research/"><strong>Forks research</strong><span>What other Telegram forks do and what we take from them.</span></a>
 </div>

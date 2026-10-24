@@ -110,3 +110,46 @@ body { -webkit-font-smoothing: antialiased; }
   .md-typeset .mg-btn, .md-typeset .mg-card { transition: none; }
 }
 @media (max-width: 600px) { .md-typeset h1 { font-size: 2em; } }
+
+/* Depth: layered glow and grid behind the page, strong on the home page, faint elsewhere. */
+:root {
+  --mg-glow1: rgba(0, 113, 227, .16); --mg-glow2: rgba(52, 199, 89, .10);
+  --mg-grid: rgba(0, 0, 0, .045); --mg-depth: .45;
+  --mg-card-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 8px 24px rgba(0, 0, 0, .05);
+  --mg-card-shadow-hover: 0 2px 4px rgba(0, 0, 0, .05), 0 14px 34px rgba(0, 0, 0, .09);
+}
+[data-md-color-scheme="slate"] {
+  --mg-glow1: rgba(41, 151, 255, .20); --mg-glow2: rgba(48, 209, 88, .08);
+  --mg-grid: rgba(255, 255, 255, .06);
+  --mg-card-shadow: 0 0 0 .5px rgba(255, 255, 255, .06), 0 8px 24px rgba(0, 0, 0, .5);
+  --mg-card-shadow-hover: 0 0 0 .5px rgba(255, 255, 255, .14), 0 14px 34px rgba(0, 0, 0, .6);
+}
+.md-main { position: relative; }
+.md-main::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 560px; z-index: 0; pointer-events: none;
+  opacity: var(--mg-depth);
+  background:
+    radial-gradient(50% 60% at 18% 0, var(--mg-glow1) 0, transparent 70%),
+    radial-gradient(40% 50% at 88% 10%, var(--mg-glow2) 0, transparent 70%),
+    linear-gradient(var(--mg-grid) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(90deg, var(--mg-grid) 1px, transparent 1px) 0 0 / 44px 44px;
+  -webkit-mask-image: radial-gradient(70% 100% at 50% 0, #000 20%, transparent 100%);
+  mask-image: radial-gradient(70% 100% at 50% 0, #000 20%, transparent 100%);
+}
+.md-main:has(.mg-hero) { --mg-depth: 1; }
+.md-main:has(.mg-hero)::before { height: 760px; }
+.md-main__inner { position: relative; z-index: 1; }
+
+.md-typeset .mg-card { box-shadow: var(--mg-card-shadow); }
+@media (hover: hover) and (pointer: fine) {
+  .md-typeset .mg-card:hover { box-shadow: var(--mg-card-shadow-hover); transform: translateY(-2px); }
+}
+.md-typeset .mg-card { transition: border-color 160ms ease, box-shadow 200ms var(--mg-ease), transform 200ms var(--mg-ease); }
+.md-typeset .mg-card:active { transform: scale(.985); }
+@media (prefers-reduced-motion: reduce) {
+  .md-typeset .mg-card:hover { transform: none; }
+  .md-typeset .mg-card { transition: border-color 160ms ease, box-shadow 160ms ease; }
+}
+
+/* Header: repository name only, no tag, stars or forks. */
+.md-source__facts { display: none; }
