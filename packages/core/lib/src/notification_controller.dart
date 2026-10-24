@@ -159,6 +159,9 @@ final class NotificationController {
   final Duration _photoTimeout;
   final _events = StreamController<NotificationEvent>.broadcast(sync: true);
   final _unread = StreamController<UnreadCounts>.broadcast(sync: true);
+  final _scopeChanges = StreamController<NotificationScope>.broadcast(
+    sync: true,
+  );
   StreamSubscription<td.TdObject>? _subscription;
 
   final _chats = <int, _ChatInfo>{};
@@ -175,6 +178,8 @@ final class NotificationController {
   /// Events are handled one at a time, so a notification still waiting for
   /// its chat photo can't be overtaken by its own removal.
   var _queue = Future<void>.value();
+  // Separate from notification delivery, which may wait for chat photos.
+  var _scopeQueue = Future<void>.value();
   var _counts = const UnreadCounts();
 
   /// The most groups TDLib keeps at once, and notifications per group.
@@ -186,6 +191,60 @@ final class NotificationController {
   /// The latest counters and every change after.
   UnreadCounts get unreadCounts => _counts;
   Stream<UnreadCounts> get unreadChanges => _unread.stream;
+
+  /// Server-confirmed changes to scope defaults; reload settings on receipt.
+  Stream<NotificationScope> get scopeChanges => _scopeChanges.stream;
+
+  /// Reads the current server defaults without changing per-chat exceptions.
+  Future<td.ScopeNotificationSettings> scopeSettings(NotificationScope scope) =>
+      _client.send(td.GetScopeNotificationSettings(scope: _tdScope(scope)));
+
+  /// Changes only the requested defaults, preserving all other server fields
+  /// and every per-chat exception. Writes read fresh settings in queue order.
+  Future<void> updateScopeSettings(
+    NotificationScope scope, {
+    bool? enabled,
+    bool? showPreview,
+    bool? sound,
+  }) {
+    final result = _scopeQueue.then((_) async {
+      final current = await scopeSettings(scope);
+      await _client.send(
+        td.SetScopeNotificationSettings(
+          scope: _tdScope(scope),
+          notificationSettings: td.ScopeNotificationSettings(
+            muteFor: enabled == null
+                ? current.muteFor
+                : (enabled ? 0 : 0x7FFFFFFF),
+            soundId: sound == null
+                ? current.soundId
+                : (sound ? (current.soundId == 0 ? -1 : current.soundId) : 0),
+            showPreview: showPreview ?? current.showPreview,
+            useDefaultMuteStories: current.useDefaultMuteStories,
+            muteStories: current.muteStories,
+            storySoundId: current.storySoundId,
+            showStoryPoster: current.showStoryPoster,
+            disablePinnedMessageNotifications:
+                current.disablePinnedMessageNotifications,
+            disableMentionNotifications: current.disableMentionNotifications,
+          ),
+        ),
+      );
+    });
+    // Keep the queue usable after failure, but return the original error.
+    _scopeQueue = result.catchError((Object _) {});
+    return result;
+  }
+
+  static td.NotificationSettingsScope _tdScope(NotificationScope scope) =>
+      switch (scope) {
+        NotificationScope.privateChats =>
+          const td.NotificationSettingsScopePrivateChats(),
+        NotificationScope.groups =>
+          const td.NotificationSettingsScopeGroupChats(),
+        NotificationScope.channels =>
+          const td.NotificationSettingsScopeChannelChats(),
+      };
 
   /// Subscribes to updates. Call before authorization, so the chats and
   /// users TDLib sends at startup are known when a notification arrives.
@@ -256,8 +315,10 @@ final class NotificationController {
     await _subscription?.cancel();
     _subscription = null;
     await _queue;
+    await _scopeQueue;
     await _events.close();
     await _unread.close();
+    await _scopeChanges.close();
   }
 
   int _newestNotified(int chatId, int messageId) {
@@ -278,6 +339,17 @@ final class NotificationController {
 
   void _onUpdate(td.TdObject object) {
     switch (object) {
+      case td.UpdateScopeNotificationSettings(:final scope):
+        if (!_scopeChanges.isClosed) {
+          _scopeChanges.add(switch (scope) {
+            td.NotificationSettingsScopePrivateChats() =>
+              NotificationScope.privateChats,
+            td.NotificationSettingsScopeGroupChats() =>
+              NotificationScope.groups,
+            td.NotificationSettingsScopeChannelChats() =>
+              NotificationScope.channels,
+          });
+        }
       case td.UpdateNewChat(:final chat):
         _chats[chat.id] = _ChatInfo(
           title: chat.title,
