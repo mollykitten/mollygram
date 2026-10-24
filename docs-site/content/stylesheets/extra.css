@@ -126,20 +126,18 @@ body { -webkit-font-smoothing: antialiased; }
 .mg-scene {
   position: absolute; top: 0; left: 0; right: 0; height: 600px; z-index: 0; overflow: hidden; pointer-events: none;
   background: var(--hero-bg);
-  animation: mg-on 300ms steps(1, end) 1;
 }
 .mg-scene::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 180px; z-index: 2;
   background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--mg-bg) 55%, transparent) 55%, var(--mg-bg));
 }
 .mg-scene .mg-layer {
-  position: absolute; right: 0; top: 70px; width: min(52vw, 720px) !important; height: auto !important; aspect-ratio: 8 / 5; overflow: visible; max-width: none !important; max-height: none !important;
+  position: absolute; right: 0; top: 0; width: min(48vw, 720px) !important; height: auto !important; aspect-ratio: 8 / 5; overflow: visible; max-width: none !important; max-height: none !important;
   transition: transform .5s cubic-bezier(.2, .8, .2, 1); will-change: transform;
 }
 .mg-neon { stroke: #ff2e88; stroke-width: var(--neon-w); opacity: var(--neon-opacity); }
 .mg-core { stroke: var(--neon-core); stroke-width: calc(var(--neon-w) * .35); }
 .mg-thread { stroke: var(--neon-far); stroke-width: 2.5; opacity: .8; }
-@keyframes mg-on { 0% { opacity: .15 } 25% { opacity: 1 } 40% { opacity: .35 } 60% { opacity: 1 } 75% { opacity: .6 } 100% { opacity: 1 } }
 
 .mg-hero, .mg-cards, .mg-dev-title { position: relative; z-index: 1; }
 .mg-hero { padding: 3.2rem 0 1rem; }
@@ -150,18 +148,28 @@ body { -webkit-font-smoothing: antialiased; }
 .md-typeset .mg-hero .mg-btn.alt { background: color-mix(in srgb, var(--hero-fg) 8%, transparent); color: var(--hero-fg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hero-fg) 18%, transparent); }
 [data-md-color-scheme="slate"] .md-typeset .mg-hero .mg-btn { background: #ffd9ea; color: #12070f; box-shadow: 0 0 22px rgba(255, 46, 136, .35); }
 
-/* Cards: dark glass, pink halo on hover. */
+/* Cards: light in the light theme, dark glass in the dark one; pink halo on hover. */
 .md-typeset .mg-card {
-  background: rgba(27, 14, 23, .88); color: #f7eef3; border: 1px solid rgba(255, 140, 190, .16);
-  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-  box-shadow: 0 10px 30px rgba(18, 7, 15, .35);
+  background: #fff; color: var(--mg-fg); border: 1px solid rgba(42, 14, 28, .1);
+  box-shadow: 0 1px 2px rgba(42, 14, 28, .05), 0 10px 28px rgba(42, 14, 28, .06);
   transition: border-color 160ms ease, box-shadow 200ms var(--mg-ease), transform 200ms var(--mg-ease);
 }
-.mg-card span { color: #b9a5b0; }
-.md-typeset .mg-card code { background: rgba(255, 255, 255, .08); color: #ffd9ea; }
+.mg-card span { color: var(--mg-fg2); }
+[data-md-color-scheme="slate"] .md-typeset .mg-card {
+  background: rgba(27, 14, 23, .88); border-color: rgba(255, 140, 190, .16);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  box-shadow: 0 10px 30px rgba(18, 7, 15, .35);
+}
+[data-md-color-scheme="slate"] .mg-card span { color: #b9a5b0; }
+.md-typeset .mg-card code { background: rgba(42, 14, 28, .06); color: var(--mg-fg); }
+[data-md-color-scheme="slate"] .md-typeset .mg-card code { background: rgba(255, 255, 255, .08); color: #ffd9ea; }
 @media (hover: hover) and (pointer: fine) {
   .md-typeset .mg-card:hover {
-    border-color: rgba(255, 92, 147, .6); transform: translateY(-2px);
+    border-color: rgba(255, 46, 136, .5); transform: translateY(-2px);
+    box-shadow: 0 0 0 1px rgba(255, 46, 136, .18), 0 0 24px rgba(255, 46, 136, .22), 0 12px 30px rgba(42, 14, 28, .1);
+  }
+  [data-md-color-scheme="slate"] .md-typeset .mg-card:hover {
+    border-color: rgba(255, 92, 147, .6);
     box-shadow: 0 0 0 1px rgba(255, 92, 147, .25), 0 0 26px rgba(255, 46, 136, .32), 0 14px 34px rgba(18, 7, 15, .5);
   }
 }
@@ -185,7 +193,6 @@ body { -webkit-font-smoothing: antialiased; }
   .mg-hero { padding-top: 2rem; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mg-scene { animation: none; }
   .mg-scene .mg-layer { transition: none; will-change: auto; }
   .md-typeset .mg-card { transition: border-color 160ms ease, box-shadow 160ms ease; }
   .md-typeset .mg-card:hover { transform: none; }
