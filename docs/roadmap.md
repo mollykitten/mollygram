@@ -60,7 +60,7 @@ places. This is how they were settled.
 | Media quality | Stage 6, before plugins | Spread over M2 | M4, its own milestone |
 | Plugins | Stage 7 | Not a milestone | M5, its own milestone |
 | Proxy, archive, folder editor | Stage 2 foundation | M1 archive, M3 folders, M4 proxy | Archive M1, folders M6, proxy M7 (TDLib proxy is a settings page, not foundation) |
-| Multiple accounts | Stage 4 with tabs | M3 | UI in M6; per-account data folders as an early M1 tech item (see below) |
+| Multiple accounts | Stage 4 with tabs | M3 | UI done early (up to 3 accounts, listed under M6); per-account data folders as an early M1 tech item (see below) |
 | Secret chats | Stage 5 privacy | M3 | M6 |
 | Stories, Premium, mini apps, payments | Stages 6–7 | M7 | M9, after release |
 | Group calls and live streams | Stage 8, in the release | M6 | M9; v1 is 1:1 calls and screen sharing, as decided on 2026-10-14 |
