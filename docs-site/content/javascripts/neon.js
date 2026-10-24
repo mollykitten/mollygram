@@ -1,40 +1,39 @@
-/* Parallax for the home page neon scene: transform only, one rAF loop, no layout reads in the frame. */
+/* Parallax for the home page neon curl. Transform only; the CSS transition (.5s) smooths the release. */
 (function () {
-  var DEPTH = { "mg-far": 0.08, "mg-mid": 0.2, "mg-near": 0.38 };
   var reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
   var fine = window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 701px)");
-  var layers = [], px = 0, py = 0, tx = 0, ty = 0, sy = 0, raf = 0, bound = false;
+  var layers = [], scene = null, cx = 0, cy = 0, sy = 0, raf = 0, bound = false;
 
   function frame() {
     raf = 0;
-    px += (tx - px) * 0.08;
-    py += (ty - py) * 0.08;
     for (var i = 0; i < layers.length; i++) {
       var l = layers[i];
-      l.el.style.transform = "translate3d(" + (px * l.d * 60).toFixed(2) + "px," + (-sy * l.d + py * l.d * 40).toFixed(2) + "px,0)";
+      l.el.style.transform = "translate3d(" + (-cx * 14 * l.z).toFixed(2) + "px," + (-cy * 10 * l.z - sy * 0.08 * l.z).toFixed(2) + "px,0)";
     }
-    if (Math.abs(tx - px) > 0.002 || Math.abs(ty - py) > 0.002) raf = requestAnimationFrame(frame);
   }
   function kick() { if (!raf && layers.length) raf = requestAnimationFrame(frame); }
-  function onScroll() { sy = Math.min(window.scrollY, 800); kick(); }
+  function onScroll() { sy = Math.min(window.scrollY, 700); kick(); }
   function onMove(e) {
-    tx = e.clientX / window.innerWidth - 0.5;
-    ty = e.clientY / window.innerHeight - 0.5;
+    if (!scene || !fine.matches) return;
+    var r = scene.getBoundingClientRect();
+    cx = (e.clientX - r.left) / r.width - 0.5;
+    cy = (e.clientY - r.top) / r.height - 0.5;
+    cx = Math.max(-0.5, Math.min(0.5, cx));
+    cy = Math.max(-0.5, Math.min(0.5, cy));
     kick();
   }
+  function onLeave() { cx = 0; cy = 0; kick(); }
   function init() {
-    layers = [];
+    layers = []; scene = null;
     if (reduce.matches) return;
-    var scene = document.querySelector(".mg-scene");
+    scene = document.querySelector(".mg-scene");
     if (!scene) return;
-    Object.keys(DEPTH).forEach(function (c) {
-      var el = scene.querySelector("." + c);
-      if (el) layers.push({ el: el, d: DEPTH[c] });
-    });
-    sy = Math.min(window.scrollY, 800);
+    scene.querySelectorAll(".mg-layer").forEach(function (el) { layers.push({ el: el, z: parseFloat(el.getAttribute("data-z")) || 0 }); });
+    sy = Math.min(window.scrollY, 700);
     if (!bound) {
       window.addEventListener("scroll", onScroll, { passive: true });
-      window.addEventListener("pointermove", function (e) { if (fine.matches && layers.length) onMove(e); }, { passive: true });
+      window.addEventListener("pointermove", onMove, { passive: true });
+      document.addEventListener("pointerleave", onLeave);
       bound = true;
     }
     kick();
