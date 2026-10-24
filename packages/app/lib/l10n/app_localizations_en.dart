@@ -382,6 +382,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationsSound => 'Play sound';
 
   @override
+  String get notificationsSectionChats => 'Message notifications';
+
+  @override
+  String get notificationsPrivateChats => 'Private chats';
+
+  @override
+  String get notificationsGroups => 'Groups';
+
+  @override
+  String get notificationsChannels => 'Channels';
+
+  @override
+  String get notificationsScopeHint =>
+      'These defaults sync with Telegram. Chats with their own notification settings keep them.';
+
+  @override
+  String get notificationsLoadFailed => 'Couldn\'t load notification settings.';
+
+  @override
+  String get notificationsOn => 'On';
+
+  @override
+  String get notificationsOff => 'Off';
+
+  @override
   String get notificationsBadge => 'Show unread count';
 
   @override

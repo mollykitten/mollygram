@@ -384,6 +384,32 @@ class AppLocalizationsRu extends AppLocalizations {
   String get notificationsSound => 'Звук';
 
   @override
+  String get notificationsSectionChats => 'Уведомления о сообщениях';
+
+  @override
+  String get notificationsPrivateChats => 'Личные чаты';
+
+  @override
+  String get notificationsGroups => 'Группы';
+
+  @override
+  String get notificationsChannels => 'Каналы';
+
+  @override
+  String get notificationsScopeHint =>
+      'Эти настройки синхронизируются с Telegram. Чаты с индивидуальными настройками уведомлений сохранят их.';
+
+  @override
+  String get notificationsLoadFailed =>
+      'Не удалось загрузить настройки уведомлений.';
+
+  @override
+  String get notificationsOn => 'Вкл.';
+
+  @override
+  String get notificationsOff => 'Выкл.';
+
+  @override
   String get notificationsBadge => 'Показывать число непрочитанных';
 
   @override

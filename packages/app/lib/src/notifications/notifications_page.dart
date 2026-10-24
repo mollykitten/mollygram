@@ -2,10 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mollygram_core/mollygram_core.dart';
+import 'package:mollygram_ui_kit/mollygram_ui_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../settings/settings_style.dart';
+import '../settings/settings_window.dart';
+import 'notification_scope_page.dart';
 import 'notification_settings.dart';
 import 'system_notifications.dart';
 
@@ -78,6 +82,13 @@ class NotificationsPage extends ConsumerWidget {
           ],
         ),
         SettingsGroup(
+          title: l10n.notificationsSectionChats,
+          children: [
+            for (final scope in NotificationScope.values)
+              _NotificationScopeRow(scope: scope),
+          ],
+        ),
+        SettingsGroup(
           title: l10n.notificationsSectionBadge,
           children: [
             SettingsSwitchRow(
@@ -104,6 +115,40 @@ class NotificationsPage extends ConsumerWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _NotificationScopeRow extends ConsumerWidget implements SettingsGroupRow {
+  const _NotificationScopeRow({required this.scope});
+
+  final NotificationScope scope;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final c = MgColors.of(context);
+    final loaded = ref.watch(scopeNotificationSettingsProvider(scope));
+    final settings = loaded.value;
+    final title = notificationScopeTitle(l10n, scope);
+    return SettingsRow(
+      key: ValueKey(('notificationScope', scope)),
+      title: title,
+      subtitle: loaded.hasError ? l10n.notificationsLoadFailed : null,
+      trailing: settings == null
+          ? loaded.hasError
+                ? null
+                : const SettingsSpinner(size: 14)
+          : Text(
+              settings.muteFor == 0
+                  ? l10n.notificationsOn
+                  : l10n.notificationsOff,
+              style: mgTextStyle(c, color: c.fg2),
+            ),
+      chevron: true,
+      onTap: () =>
+          SettingsNavigation.of(context)
+              .push(title, (context) => NotificationScopePage(scope: scope)),
     );
   }
 }

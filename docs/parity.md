@@ -1,7 +1,7 @@
 # Feature parity with the official macOS client
 
 This is the backlog for reaching feature parity with the official macOS
-Telegram client, [TelegramSwift](https://github.com/overtake/TelegramSwift).
+Telegram client, [Telegram for macOS](https://github.com/TelegramMessenger/telegram-macos).
 TelegramSwift is GPL v2: we study how it behaves and looks, and write our
 own code on TDLib. Nothing is copied from it.
 
@@ -20,13 +20,12 @@ M1 daily driver, M2 full chat, M3 privacy extras, M4 media quality,
 M5 plugins, M6 chats and account management, M7 settings parity,
 M8 calls and macOS release, M9 after release.
 
-### First items to take
+### Remaining daily-driver work
 
-1. ~~Desktop notifications with reply and mark as read (M1)~~ done
-2. Unread jump: "new messages" separator, scroll-to-bottom button with a counter, jump to mentions and reactions (M1)
-3. Typing, online and last-seen statuses in the header and chat list (M1)
-4. Chat list context menu: pin, mute, archive, mark as read, delete or leave, plus the archive folder (M1)
-5. Emoji and sticker picker in the composer (M1)
+The original first-items list is implemented; the detailed rows below track
+the remaining gaps. For M1, notification tones and the inactive-session
+auto-terminate period are still missing. The milestone also needs a week
+of real use without crashes; passing tests alone does not establish that.
 
 ## Backlog
 
@@ -41,7 +40,7 @@ M8 calls and macOS release, M9 after release.
 | Archive folder entry and archive view | done | Archive row on top of All, "Mark all as read". Missing: collapsing or hiding the row | | |
 | Unread mention and reaction badges in the list | done | Plus marked-as-unread, muted gray badge, pin icon, secret chat lock | | |
 | Typing and online dot in the list | done | `PresenceController` | | |
-| Draft preview in the list ("Draft: …") | partial | `UpdateChatDraftMessage` is stored, not shown | S | M1 |
+| Draft preview in the list ("Draft: …") | done | `sidebar.dart` prefers the draft text and date; `ChatListTile.draftLabel` draws the separate label | | M1 |
 | Pinned chats order with drag | missing | `SetPinnedChats` | S | M6 |
 | Folder editor: create, edit, delete, reorder, include/exclude, recommended | done | Settings > Chat folders: drag reorder, editor sheet with icon, chat types and a chat picker, delete with chats to leave, recommended folders; `ChatFoldersController` in core. No pinning inside a folder or "All chats" position yet | | M6 |
 | Folder sidebar (vertical tabs) and folder icons | missing | Official offers left-side folders | M | M7 |
@@ -212,7 +211,7 @@ M8 calls and macOS release, M9 after release.
 | Feature | Status | Notes | Size | M |
 |---|---|---|---|---|
 | Settings window shell in macOS System Settings style | done | Pages are descriptors in `settingsSections` | | |
-| Notifications and sounds: per-type, badge, preview, sound | partial | Global switches, preview, sound and badge done (`NotificationsPage`); per-type scopes (private, groups, channels) and tones missing | S | M1 |
+| Notifications and sounds: per-type, badge, preview, sound | partial | Global switches, preview, sound and badge (`NotificationsPage`); private chats, groups and channels have server-backed defaults for notifications, previews and sound (`NotificationScopePage`), updated live from TDLib without resetting per-chat exceptions. Telegram tones and custom sound playback remain missing | S | M1 |
 | Active sessions and terminate | partial | List, terminate one or all others; no auto-terminate period | S | M1 |
 | Privacy and security: last seen, phone, photo, calls, forwards, groups, blocked list | done | Nine settings with Everybody / My contacts / Nobody and always / never lists, finding by phone, blocked list with block and unblock ([privacy_settings_controller.dart](../packages/core/lib/src/privacy_settings_controller.dart)); exceptions add people from the contacts only, groups already in a list are kept and can be removed | | |
 | Two-step verification setup | done | Set, change and remove the password with a hint, recovery email with its code (resend, cancel, auto-submit at its length); a forgotten password is recovered by an email code, or reset after Telegram's wait without one (cancellable) | | |

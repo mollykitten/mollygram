@@ -776,6 +776,54 @@ abstract class AppLocalizations {
   /// **'Play sound'**
   String get notificationsSound;
 
+  /// No description provided for @notificationsSectionChats.
+  ///
+  /// In en, this message translates to:
+  /// **'Message notifications'**
+  String get notificationsSectionChats;
+
+  /// No description provided for @notificationsPrivateChats.
+  ///
+  /// In en, this message translates to:
+  /// **'Private chats'**
+  String get notificationsPrivateChats;
+
+  /// No description provided for @notificationsGroups.
+  ///
+  /// In en, this message translates to:
+  /// **'Groups'**
+  String get notificationsGroups;
+
+  /// No description provided for @notificationsChannels.
+  ///
+  /// In en, this message translates to:
+  /// **'Channels'**
+  String get notificationsChannels;
+
+  /// No description provided for @notificationsScopeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'These defaults sync with Telegram. Chats with their own notification settings keep them.'**
+  String get notificationsScopeHint;
+
+  /// No description provided for @notificationsLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load notification settings.'**
+  String get notificationsLoadFailed;
+
+  /// No description provided for @notificationsOn.
+  ///
+  /// In en, this message translates to:
+  /// **'On'**
+  String get notificationsOn;
+
+  /// No description provided for @notificationsOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get notificationsOff;
+
   /// No description provided for @notificationsBadge.
   ///
   /// In en, this message translates to:

@@ -37,6 +37,182 @@ void main() {
     await pumpEventQueue();
   }
 
+  test('reads fresh server settings for every notification scope', () async {
+    for (final (scope, type) in _scopeTypes.entries.map(
+      (e) => (e.key, e.value),
+    )) {
+      json.scopeSettings[type] = {..._settings, 'mute_for': scope.index + 100};
+      final settings = await controller.scopeSettings(scope);
+      expect(settings.muteFor, scope.index + 100);
+      expect(settings.toJson(), json.scopeSettings[type]);
+    }
+    expect(
+      json.sent.map((r) => r['@type']),
+      everyElement('getScopeNotificationSettings'),
+    );
+    expect(
+      json.sent.map((r) => (r['scope'] as Map)['@type']),
+      _scopeTypes.values,
+    );
+  });
+
+  test(
+    'mutes and unmutes each scope without touching chat exceptions',
+    () async {
+      for (final scope in NotificationScope.values) {
+        await controller.updateScopeSettings(scope, enabled: false);
+        expect((await controller.scopeSettings(scope)).toJson(), {
+          ..._settings,
+          'mute_for': 0x7FFFFFFF,
+        });
+        await controller.updateScopeSettings(scope, enabled: true);
+        expect((await controller.scopeSettings(scope)).toJson(), {
+          ..._settings,
+          'mute_for': 0,
+        });
+      }
+      expect(
+        json.sent.map((r) => r['@type']),
+        everyElement(
+          isIn([
+            'getScopeNotificationSettings',
+            'setScopeNotificationSettings',
+          ]),
+        ),
+      );
+    },
+  );
+
+  test('edits preview and sound preserving timers, custom tones and all other fields', () async {
+    const scope = NotificationScope.groups;
+    final type = _scopeTypes[scope]!;
+    for (final flags in [false, true]) {
+      final original = {
+        ..._settings,
+        'use_default_mute_stories': flags,
+        'mute_stories': !flags,
+        'show_story_poster': flags,
+        'disable_pinned_message_notifications': !flags,
+        'disable_mention_notifications': flags,
+      };
+      json.scopeSettings[type] = original;
+      await controller.updateScopeSettings(
+        scope,
+        showPreview: false,
+        sound: true,
+      );
+      expect(json.scopeSettings[type], {...original, 'show_preview': false});
+      await controller.updateScopeSettings(
+        scope,
+        showPreview: true,
+        sound: false,
+      );
+      expect(json.scopeSettings[type], {...original, 'sound_id': '0'});
+      await controller.updateScopeSettings(scope, sound: true);
+      expect(json.scopeSettings[type], {...original, 'sound_id': '-1'});
+      await controller.updateScopeSettings(scope);
+      expect(json.scopeSettings[type], {...original, 'sound_id': '-1'});
+    }
+    expect(
+      json.sent.where((r) => r['@type'] == 'setScopeNotificationSettings'),
+      hasLength(8),
+    );
+  });
+
+  test('propagates failed reads without writing', () async {
+    json.failNextRead = true;
+    await expectLater(
+      controller.scopeSettings(NotificationScope.channels),
+      throwsA(isA<td.TdException>()),
+    );
+    json.failNextRead = true;
+    await expectLater(
+      controller.updateScopeSettings(
+        NotificationScope.channels,
+        enabled: false,
+      ),
+      throwsA(isA<td.TdException>()),
+    );
+    expect(
+      json.sent.map((r) => r['@type']),
+      everyElement('getScopeNotificationSettings'),
+    );
+  });
+
+  test(
+    'serializes read-modify-write updates to preserve both changes',
+    () async {
+      await Future.wait([
+        controller.updateScopeSettings(
+          NotificationScope.privateChats,
+          showPreview: false,
+        ),
+        controller.updateScopeSettings(
+          NotificationScope.privateChats,
+          sound: false,
+        ),
+      ]);
+      expect(json.scopeSettings[_scopeTypes[NotificationScope.privateChats]], {
+        ..._settings,
+        'show_preview': false,
+        'sound_id': '0',
+      });
+      expect(json.sent.map((r) => r['@type']), [
+        'getScopeNotificationSettings',
+        'setScopeNotificationSettings',
+        'getScopeNotificationSettings',
+        'setScopeNotificationSettings',
+      ]);
+    },
+  );
+
+  test('propagates failed writes and continues queued updates', () async {
+    json.failNextWrite = true;
+    final failed = controller.updateScopeSettings(
+      NotificationScope.groups,
+      enabled: false,
+    );
+    final failure = expectLater(failed, throwsA(isA<td.TdException>()));
+    final next = controller.updateScopeSettings(
+      NotificationScope.groups,
+      showPreview: false,
+    );
+    await failure;
+    await next;
+    expect(json.scopeSettings[_scopeTypes[NotificationScope.groups]], {
+      ..._settings,
+      'show_preview': false,
+    });
+  });
+
+  test('scope changes follow TDLib updates for all scopes, not write acknowledgments', () async {
+    final changes = <NotificationScope>[];
+    var closed = false;
+    controller.scopeChanges.listen(changes.add, onDone: () => closed = true);
+    await controller.updateScopeSettings(
+      NotificationScope.groups,
+      enabled: false,
+    );
+    expect(changes, isEmpty);
+    for (final entry in _scopeTypes.entries) {
+      await push({
+        '@type': 'updateScopeNotificationSettings',
+        'scope': {'@type': entry.value},
+        'notification_settings': _settings,
+      });
+    }
+    expect(changes, NotificationScope.values);
+    await controller.dispose();
+    expect(closed, isTrue);
+    // The common tearDown can dispose the already-closed controller again.
+    await push({
+      '@type': 'updateScopeNotificationSettings',
+      'scope': {'@type': _scopeTypes[NotificationScope.privateChats]},
+      'notification_settings': _settings,
+    });
+    expect(changes, NotificationScope.values);
+  });
+
   test('turns TDLib notifications on and off', () async {
     await controller.setEnabled(true);
     await controller.setEnabled(false);
@@ -231,6 +407,25 @@ void main() {
   });
 }
 
+const _scopeTypes = {
+  NotificationScope.privateChats: 'notificationSettingsScopePrivateChats',
+  NotificationScope.groups: 'notificationSettingsScopeGroupChats',
+  NotificationScope.channels: 'notificationSettingsScopeChannelChats',
+};
+
+const _settings = <String, Object?>{
+  '@type': 'scopeNotificationSettings',
+  'mute_for': 321,
+  'sound_id': '9876543210',
+  'show_preview': true,
+  'use_default_mute_stories': true,
+  'mute_stories': true,
+  'story_sound_id': '1234567890',
+  'show_story_poster': true,
+  'disable_pinned_message_notifications': true,
+  'disable_mention_notifications': true,
+};
+
 const _private = {'@type': 'chatTypePrivate', 'user_id': 7};
 const _secret = {'@type': 'chatTypeSecret', 'secret_chat_id': 1, 'user_id': 7};
 const _supergroup = {
@@ -326,7 +521,31 @@ Map<String, Object?> _group({
 final class _FakeTdJson implements td.TdJson {
   final _queue = Queue<String>();
   final sent = <Map<String, Object?>>[];
+  final scopeSettings = {
+    for (final type in _scopeTypes.values)
+      type: Map<String, Object?>.of(_settings),
+  };
   var _nextClientId = 0;
+  var failNextRead = false;
+  var failNextWrite = false;
+
+  Map<String, Object?> _readScope(Map<String, Object?> request) {
+    if (failNextRead) {
+      failNextRead = false;
+      return {'@type': 'error', 'code': 500, 'message': 'read failed'};
+    }
+    return scopeSettings[(request['scope'] as Map)['@type']]!;
+  }
+
+  Map<String, Object?> _writeScope(Map<String, Object?> request) {
+    if (failNextWrite) {
+      failNextWrite = false;
+      return {'@type': 'error', 'code': 500, 'message': 'write failed'};
+    }
+    scopeSettings[(request['scope'] as Map)['@type'] as String] =
+        Map<String, Object?>.from(request['notification_settings'] as Map);
+    return {'@type': 'ok'};
+  }
 
   @override
   int createClientId() => ++_nextClientId;
@@ -343,6 +562,8 @@ final class _FakeTdJson implements td.TdJson {
     final decoded = jsonDecode(request) as Map<String, Object?>;
     sent.add(decoded);
     final response = switch (decoded['@type']) {
+      'getScopeNotificationSettings' => _readScope(decoded),
+      'setScopeNotificationSettings' => _writeScope(decoded),
       'sendMessage' => _message(id: 1000, chatId: decoded['chat_id'] as int),
       _ => {'@type': 'ok'},
     };
