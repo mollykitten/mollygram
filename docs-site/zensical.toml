@@ -9,6 +9,7 @@ repo_name = "mollybyte/mollygram"
 docs_dir = "build/docs"
 site_dir = "site"
 extra_css = ["stylesheets/extra.css"]
+extra_javascript = ["javascripts/neon.js"]
 
 nav = [
   { "Home" = "index.md" },

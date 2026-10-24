@@ -6,9 +6,9 @@
   --mg-ease: cubic-bezier(.23, 1, .32, 1);
 }
 :root[data-md-color-scheme="slate"], [data-md-color-scheme="slate"] {
-  --mg-bg: #000; --mg-bg2: #111113; --mg-fg: #f5f5f7; --mg-fg2: #a1a1a6;
-  --mg-line: rgba(255, 255, 255, .14); --mg-link: #2997ff; --mg-focus: #2997ff;
-  --mg-code: rgba(255, 255, 255, .08);
+  --mg-bg: #12070f; --mg-bg2: #1b0e17; --mg-fg: #f7eef3; --mg-fg2: #b3a1ab;
+  --mg-line: rgba(255, 140, 190, .16); --mg-link: #ff5c93; --mg-focus: #ff5c93;
+  --mg-code: rgba(255, 255, 255, .07);
 }
 
 [data-md-color-scheme] {
@@ -111,44 +111,75 @@ body { -webkit-font-smoothing: antialiased; }
 }
 @media (max-width: 600px) { .md-typeset h1 { font-size: 2em; } }
 
-/* Depth: layered glow and grid behind the page, strong on the home page, faint elsewhere. */
-:root {
-  --mg-glow1: rgba(0, 113, 227, .16); --mg-glow2: rgba(52, 199, 89, .10);
-  --mg-grid: rgba(0, 0, 0, .045); --mg-depth: .45;
-  --mg-card-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 8px 24px rgba(0, 0, 0, .05);
-  --mg-card-shadow-hover: 0 2px 4px rgba(0, 0, 0, .05), 0 14px 34px rgba(0, 0, 0, .09);
-}
-[data-md-color-scheme="slate"] {
-  --mg-glow1: rgba(41, 151, 255, .20); --mg-glow2: rgba(48, 209, 88, .08);
-  --mg-grid: rgba(255, 255, 255, .06);
-  --mg-card-shadow: 0 0 0 .5px rgba(255, 255, 255, .06), 0 8px 24px rgba(0, 0, 0, .5);
-  --mg-card-shadow-hover: 0 0 0 .5px rgba(255, 255, 255, .14), 0 14px 34px rgba(0, 0, 0, .6);
-}
+/* Home page neon scene. Brand: neon #ff2e88, ink #12070f, raspberry #d6336c / #ff5c93. */
+.mg-hero img { display: none; }
+:root { --mg-fade: #f3d3e2; }
+[data-md-color-scheme="slate"] { --mg-fade: #12070f; }
 .md-main { position: relative; }
-.md-main::before {
-  content: ""; position: absolute; inset: 0 0 auto 0; height: 560px; z-index: 0; pointer-events: none;
-  opacity: var(--mg-depth);
-  background:
-    radial-gradient(50% 60% at 18% 0, var(--mg-glow1) 0, transparent 70%),
-    radial-gradient(40% 50% at 88% 10%, var(--mg-glow2) 0, transparent 70%),
-    linear-gradient(var(--mg-grid) 1px, transparent 1px) 0 0 / 44px 44px,
-    linear-gradient(90deg, var(--mg-grid) 1px, transparent 1px) 0 0 / 44px 44px;
-  -webkit-mask-image: radial-gradient(70% 100% at 50% 0, #000 20%, transparent 100%);
-  mask-image: radial-gradient(70% 100% at 50% 0, #000 20%, transparent 100%);
+.md-main:has(.mg-scene) .md-main__inner { position: static; }
+.mg-scene {
+  position: absolute; top: 0; left: 0; right: 0; height: 720px; z-index: 0; overflow: hidden; pointer-events: none;
+  background: radial-gradient(60% 70% at 72% 34%, #2b0c1e 0, #12070f 72%);
+  animation: mg-on 300ms steps(1, end) 1;
 }
-.md-main:has(.mg-hero) { --mg-depth: 1; }
-.md-main:has(.mg-hero)::before { height: 760px; }
-.md-main__inner { position: relative; z-index: 1; }
+.mg-scene::before {
+  content: ""; position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(90deg, rgba(18, 7, 15, .92) 0%, rgba(18, 7, 15, .75) 34%, rgba(18, 7, 15, .35) 52%, transparent 66%);
+}
+.mg-scene::after {
+  content: ""; position: absolute; inset: 0; z-index: 3;
+  background: linear-gradient(to bottom, transparent 50%, color-mix(in srgb, var(--mg-fade) 30%, transparent) 66%,
+    color-mix(in srgb, var(--mg-fade) 70%, transparent) 82%, var(--mg-bg) 100%);
+}
+.mg-scene .mg-layer { position: absolute; left: -32px; top: -32px; width: calc(100% + 64px) !important; height: calc(100% + 64px) !important; max-width: none !important; max-height: none !important; will-change: transform; }
+@keyframes mg-on { 0% { opacity: .15 } 25% { opacity: 1 } 40% { opacity: .35 } 60% { opacity: 1 } 75% { opacity: .6 } 100% { opacity: 1 } }
 
-.md-typeset .mg-card { box-shadow: var(--mg-card-shadow); }
-@media (hover: hover) and (pointer: fine) {
-  .md-typeset .mg-card:hover { box-shadow: var(--mg-card-shadow-hover); transform: translateY(-2px); }
+.mg-hero, .mg-cards, .mg-dev-title { position: relative; z-index: 1; }
+.mg-hero { padding: 3.2rem 0 1rem; }
+.md-typeset .mg-hero h1 { color: #fff; text-shadow: 0 0 28px rgba(255, 46, 136, .45); }
+.mg-hero p { color: rgba(255, 226, 238, .78); }
+.md-typeset .mg-hero .mg-btn { background: #ffd9ea; color: #12070f; box-shadow: 0 0 22px rgba(255, 46, 136, .35); }
+.md-typeset .mg-hero .mg-btn.alt { background: rgba(255, 255, 255, .08); color: #ffe6f1; box-shadow: inset 0 0 0 1px rgba(255, 140, 190, .3); }
+
+/* Cards: dark glass, pink halo on hover. */
+.md-typeset .mg-card {
+  background: rgba(27, 14, 23, .88); color: #f7eef3; border: 1px solid rgba(255, 140, 190, .16);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  box-shadow: 0 10px 30px rgba(18, 7, 15, .35);
+  transition: border-color 160ms ease, box-shadow 200ms var(--mg-ease), transform 200ms var(--mg-ease);
 }
-.md-typeset .mg-card { transition: border-color 160ms ease, box-shadow 200ms var(--mg-ease), transform 200ms var(--mg-ease); }
+.mg-card span { color: #b9a5b0; }
+.md-typeset .mg-card code { background: rgba(255, 255, 255, .08); color: #ffd9ea; }
+@media (hover: hover) and (pointer: fine) {
+  .md-typeset .mg-card:hover {
+    border-color: rgba(255, 92, 147, .6); transform: translateY(-2px);
+    box-shadow: 0 0 0 1px rgba(255, 92, 147, .25), 0 0 26px rgba(255, 46, 136, .32), 0 14px 34px rgba(18, 7, 15, .5);
+  }
+}
 .md-typeset .mg-card:active { transform: scale(.985); }
+.md-typeset .mg-dev-title { color: var(--mg-fg2); }
+
+/* Inner pages: one short, dim tube above the title. */
+.md-content__inner:not(:has(.mg-hero))::before {
+  content: ""; display: block; width: 64px; height: 4px; margin: 0 0 1.1rem; border-radius: 2px;
+  background: #ffd9ea; box-shadow: 0 0 6px rgba(255, 46, 136, .8), 0 0 18px rgba(255, 46, 136, .4);
+  opacity: .8;
+}
+
+/* Header and top tabs pick up the ink tint in dark mode. */
+[data-md-color-scheme="slate"] .md-tabs { background: var(--mg-bg); }
+
+@media (max-width: 700px) {
+  .mg-scene { height: 800px; }
+  .mg-far { display: none; }
+  .mg-scene::before { background: linear-gradient(180deg, rgba(18, 7, 15, .35), rgba(18, 7, 15, .74) 30%, rgba(18, 7, 15, .74) 62%, rgba(18, 7, 15, .2)); }
+  .mg-hero { padding-top: 2rem; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .md-typeset .mg-card:hover { transform: none; }
+  .mg-scene { animation: none; }
+  .mg-layer { will-change: auto; }
   .md-typeset .mg-card { transition: border-color 160ms ease, box-shadow 160ms ease; }
+  .md-typeset .mg-card:hover { transform: none; }
 }
 
 /* Header: repository name only, no tag, stars or forks. */

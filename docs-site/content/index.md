@@ -6,6 +6,8 @@ hide:
   - path
 ---
 
+<div class="mg-scene" aria-hidden="true"><!-- neon-scene --></div>
+
 <div class="mg-hero" markdown>
 <img src="assets/icon.svg" alt="">
 

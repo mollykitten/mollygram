@@ -10,6 +10,8 @@ Public documentation site config, pages and theme. The engineering notes in [`do
 |---|---|
 | `zensical.toml` | Site config: navigation, theme, palette, Markdown extensions |
 | `requirements.txt` | Zensical, pinned to an exact version |
+| `neon.py` | Generates the neon tubes SVG for the home page hero (three parallax layers); `prepare.py` injects it into `index.md` |
+| `content/javascripts/neon.js` | Parallax on scroll and pointer: transform only, off with `prefers-reduced-motion` |
 | `prepare.py` | Stages `content/`, `docs/assets/` and the favicon into `build/docs` (git-ignored) |
 | `content/` | Pages,  `stylesheets/extra.css`, `_headers` (noindex on `*.pages.dev` previews) |
 
