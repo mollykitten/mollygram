@@ -33,7 +33,7 @@ name: Transcribe               # up to 40 characters
 version: 1.0.0                 # semver
 author: Mollygram
 description: Transcribes voice and video messages on device.
-runtime: js                    # the only allowed value
+runtime: js                    # required; the only allowed value
 sdk: ^1.0                      # compatible within the major version
 main: index.js                 # defaults to index.js
 permissions:
@@ -41,7 +41,7 @@ permissions:
   storage: 1mb
 hooks: [message.render.voice, message.render.round]
 commands:
-  - { name: /summary, title: Summarize current chat, shortcut: cmd+shift+s }
+  - { name: /summary, title: Summarize current chat, shortcut: cmd+shift+s }   # name: ^/[a-z][a-z0-9_]{0,31}$
 settings:
   - { key: auto, type: toggle, label: Transcribe automatically, default: false }
   - key: language
@@ -51,7 +51,7 @@ settings:
     options: [{ value: auto, label: Auto-detect }, { value: en, label: English }]
 ```
 
-An unknown field, permission or hook makes the manifest invalid: nothing is silently ignored. The id names the plugin's folder, so device names such as `con` or `nul` are not allowed in it. Errors are collected into a list and shown at install time.
+`runtime` must be present: a manifest without it is invalid. A command `name` must match `^/[a-z][a-z0-9_]{0,31}$`; `shortcut` is stored as a string and not validated. An unknown field, permission or hook makes the manifest invalid: nothing is silently ignored. The id names the plugin's folder, so device names such as `con` or `nul` are not allowed in it. Errors are collected into a list and shown at install time.
 
 ## Permissions
 
@@ -62,7 +62,7 @@ An unknown field, permission or hook makes the manifest invalid: nothing is sile
 | | `all` | All chats; a separate warning is shown at install time | All messages |
 | `composer.write` | `true` | Insert text into the composer and intercept sending | Composer |
 | `net` | list of hosts, `user_endpoint` | `https` to exact host names; `user_endpoint` allows an address the user enters themselves. Wildcards and IPs are not allowed | Network: api.deepl.com |
-| `storage` | `512kb` … `50mb` | Private key-value storage | Storage. Up to 5 MB |
+| `storage` | `N kb` or `N mb`, up to `50mb` | Private key-value storage | Storage. Up to 5 MB |
 | `notifications.manage` | `true` | Defer and group notifications | Notifications |
 | `media.read` | `[voice, round, photo, video, document]` | Process media of these types through the host API | Media: voice messages, video messages |
 
@@ -72,11 +72,12 @@ Consent is given at install time for the whole list. If an update adds permissio
 
 ## Events
 
-A plugin subscribes with `mg.on(event, handler)`, only during load and only to events listed in the manifest's `hooks` (except `ui.action`, `settings.changed` and `app.ready`, which are available to everyone). Handlers within one plugin run in order; plugins are called in install order, and none of them can prevent the next ones from being called.
+A plugin subscribes with `mg.on(event, handler)`, only during load and only to events listed in the manifest's `hooks` (except `ui.action`, `settings.changed` and `app.ready`, which are available to everyone). `ui.action`, `settings.changed` and `app.ready` may also be listed in `hooks`; listing them is not an error. Handlers within one plugin run in registration order; there is no priority. Plugins are called in install order, and none of them can prevent the next ones from being called.
 
 | Event | Kind | Required permission | Data | Response |
 |-------|------|---------------------|------|----------|
-| `app.ready` | observe | | | |
+| `app.ready` | observe | | | (reserved: the app does not send it yet) |
+
 | `chat.opened` | observe | `messages.read: chats[]` or `all` | `{chatId}` | |
 | `message.incoming` | observe | same | `{message}` | |
 | `message.edited` | observe | same | `{message, oldText}` | |
@@ -88,7 +89,7 @@ A plugin subscribes with `mg.on(event, handler)`, only during load and only to e
 | `message.render.text` (1.1) | render | `messages.read: chats[]` or `all` | `{message}` | list of UI nodes shown below the text |
 | `message.filter` (1.1) | filter | `messages.read: chats[]` or `all` | `{message}` | `{filter: "hide" \| "collapse", reason}` or nothing |
 | `ui.action` | render | | `{action, payload, message}` after a plugin button is pressed | list of UI nodes replacing the old ones |
-| `notification.incoming` | intercept | `notifications.manage` | `{chatId, messageId, title, body}` | `{cancel}`, `{modify}` or `{defer: seconds}` |
+| `notification.incoming` | intercept | `notifications.manage` | `{chatId, messageId, title, body}` | `{cancel}` or `{modify}`; `{defer: seconds}` is accepted but ignored by the host |
 | `settings.changed` | observe | | `{key, value}` | |
 
 `message.render.code` hands a plugin one code block (a `pre` entity) and its language, not the message: without `messages.read` the host passes `message` on as `{chatId, id}` only, and the app may leave it out. A `code` node is used only when its spans spell exactly the code it was given, so a plugin can color a block but never change what it says; a node has at most 8000 spans of up to 4000 characters each. Code blocks are message text, so a plugin that hooks `message.render.code` and also has `net` must declare `messages.read: all`, and the consent sheet lists the hook ("Message rendering").
@@ -140,7 +141,7 @@ Limits: 200 nodes, nesting depth 8, strings up to 4000 characters, the text of a
 
 - **Separate VM.** Each plugin gets its own quickjs-ng `JSRuntime` without `quickjs-libc`: no files, network, timers, `require`, `std` or `os`. The only way out is a host function that the prelude hides in a closure before the plugin's code runs.
 - **Separate isolate.** `PluginWorker` runs the VM in its own Dart isolate. JS never runs on the UI isolate, so even a plugin that hits its time limit does not drop frames. Services (TDLib, storage, speech recognition) are called on the app isolate, which only receives calls that have already been authorized.
-- **Memory.** 32 MB heap per plugin (`JS_SetMemoryLimit`). Exceeding it disables the plugin immediately and frees the VM.
+- **Memory.** 32 MB heap per plugin, counted by the VM's own allocator (`mg_qjs.c`: every allocation is checked against the limit, not `JS_SetMemoryLimit`). Exceeding it disables the plugin immediately and frees the VM.
 - **Stack.** 512 KB (`JS_SetMaxStackSize`); deep recursion throws an exception instead of crashing the process. The stack top is updated before every entry into JS, because the isolate may move to another thread.
 - **Time.** CPU time budget per entry into JS: 500 ms for loading, 100 ms for a handler or a promise job run. Measured as thread CPU time, so system load does not penalize well-behaved plugins. An async handler is awaited for up to 5 s; a command or button press for up to 60 s (it may involve speech recognition).
 - **Failures.** An exception, timeout or invalid UI is a strike, and the event result is as if the plugin were not installed. Three consecutive strikes disable the plugin until it is re-enabled manually; the reason is shown on its screen. A successful call resets the counter.
