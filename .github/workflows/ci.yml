@@ -102,6 +102,15 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Upload golden failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: packages/**/test/failures/*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
   build:
     name: Build ${{ matrix.target }}
     needs: analyze
