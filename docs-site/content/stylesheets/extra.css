@@ -1,0 +1,112 @@
+/* Mollygram docs: the same palette and system type as mollygram.dev (website/src/site.css). */
+:root {
+  --mg-bg: #fff; --mg-bg2: #f5f5f7; --mg-fg: #1d1d1f; --mg-fg2: #6e6e73;
+  --mg-line: rgba(0, 0, 0, .1); --mg-link: #0066cc; --mg-focus: #0071e3;
+  --mg-code: rgba(0, 0, 0, .05);
+  --mg-ease: cubic-bezier(.23, 1, .32, 1);
+}
+:root[data-md-color-scheme="slate"], [data-md-color-scheme="slate"] {
+  --mg-bg: #000; --mg-bg2: #111113; --mg-fg: #f5f5f7; --mg-fg2: #a1a1a6;
+  --mg-line: rgba(255, 255, 255, .14); --mg-link: #2997ff; --mg-focus: #2997ff;
+  --mg-code: rgba(255, 255, 255, .08);
+}
+
+[data-md-color-scheme] {
+  --md-text-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --md-code-font: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --md-default-bg-color: var(--mg-bg);
+  --md-default-fg-color: var(--mg-fg);
+  --md-default-fg-color--light: var(--mg-fg2);
+  --md-default-fg-color--lighter: var(--mg-line);
+  --md-default-fg-color--lightest: var(--mg-line);
+  --md-primary-fg-color: var(--mg-bg);
+  --md-primary-bg-color: var(--mg-fg);
+  --md-primary-bg-color--light: var(--mg-fg2);
+  --md-accent-fg-color: var(--mg-link);
+  --md-typeset-color: var(--mg-fg);
+  --md-typeset-a-color: var(--mg-link);
+  --md-code-bg-color: var(--mg-code);
+  --md-code-fg-color: var(--mg-fg);
+  --md-footer-bg-color: var(--mg-bg2);
+  --md-footer-fg-color: var(--mg-fg2);
+  --md-footer-fg-color--light: var(--mg-fg2);
+  --md-footer-fg-color--lighter: var(--mg-fg2);
+}
+body { -webkit-font-smoothing: antialiased; }
+
+/* Header: translucent, like a system toolbar, no heavy bar. */
+.md-header {
+  background: color-mix(in srgb, var(--mg-bg) 78%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  color: var(--mg-fg);
+  box-shadow: 0 1px 0 var(--mg-line);
+}
+.md-header__title { font-weight: 600; }
+.md-header__button.md-logo img { height: 1.5rem; }
+@media (prefers-reduced-transparency: reduce) {
+  .md-header { background: var(--mg-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+.md-search__form { border-radius: 10px; background: var(--mg-code); box-shadow: none; }
+.md-search__form:hover { background: var(--mg-line); }
+.md-search__input::placeholder { color: var(--mg-fg2); }
+
+/* Headings and text: tight tracking on large type, calm body. */
+.md-typeset { font-size: .85rem; line-height: 1.65; }
+.md-typeset h1 { font-weight: 600; font-size: 2.4em; line-height: 1.1; letter-spacing: -.03em; color: var(--mg-fg); margin-bottom: .8em; }
+.md-typeset h2 { font-weight: 600; letter-spacing: -.02em; margin-top: 2.2em; padding-top: 1.2em; border-top: 1px solid var(--mg-line); }
+.md-typeset h3 { font-weight: 600; letter-spacing: -.01em; }
+.md-typeset a { text-decoration: none; }
+.md-typeset a:hover { text-decoration: underline; text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--mg-focus); outline-offset: 2px; border-radius: 4px; }
+
+/* Navigation */
+.md-nav__link { border-radius: 8px; transition: color 120ms ease; }
+.md-nav__item .md-nav__link--active { font-weight: 600; color: var(--mg-link); }
+.md-nav--primary > .md-nav__list > .md-nav__item--section > .md-nav__link { font-size: .65rem; letter-spacing: .06em; text-transform: uppercase; color: var(--mg-fg2); }
+
+/* Code and tables */
+.md-typeset code { border-radius: 6px; padding: .12em .4em; }
+.md-typeset pre > code { border-radius: 12px; padding: 1em 1.2em; }
+.md-typeset .highlight, .md-typeset pre { border-radius: 12px; }
+.md-typeset table:not([class]) { display: block; overflow-x: auto; border: 1px solid var(--mg-line); border-radius: 12px; box-shadow: none; font-size: .78rem; }
+.md-typeset table:not([class]) th { background: var(--mg-bg2); font-weight: 600; color: var(--mg-fg); }
+.md-typeset table:not([class]) td, .md-typeset table:not([class]) th { border-color: var(--mg-line); }
+.md-typeset table:not([class]) tr:hover { background: var(--mg-bg2); }
+.md-typeset hr { border-color: var(--mg-line); }
+.md-typeset .admonition, .md-typeset details { border-radius: 12px; box-shadow: none; border-width: 1px; }
+
+.md-footer { border-top: 1px solid var(--mg-line); }
+.md-top { border-radius: 980px; box-shadow: none; background: var(--mg-bg2); color: var(--mg-fg); border: 1px solid var(--mg-line); }
+
+/* Home page */
+.mg-hero { padding: 2.2rem 0 1rem; }
+.mg-hero img { width: 72px; height: 72px; display: block; margin-bottom: 1.4rem; }
+.mg-hero h1 { font-size: clamp(2.2rem, 6vw, 3.6rem); max-width: 14ch; margin: 0 0 .5em; }
+.mg-hero p { font-size: 1.15rem; line-height: 1.5; color: var(--mg-fg2); max-width: 36rem; margin: 0 0 1.6rem; }
+.mg-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.md-typeset .mg-btn {
+  display: inline-flex; align-items: center; height: 44px; padding: 0 22px; border-radius: 22px;
+  font-size: .8rem; font-weight: 500; background: var(--mg-fg); color: var(--mg-bg);
+  transition: transform 160ms var(--mg-ease);
+}
+.md-typeset .mg-btn:hover { text-decoration: none; }
+.md-typeset .mg-btn:active { transform: scale(.97); }
+.md-typeset .mg-btn.alt { background: var(--mg-code); color: var(--mg-fg); }
+.mg-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: .9rem; margin: 2rem 0; }
+.md-typeset .mg-card {
+  display: block; padding: 1.2rem 1.3rem; border-radius: 16px; background: var(--mg-bg2);
+  border: 1px solid transparent; color: var(--mg-fg);
+  transition: border-color 160ms ease, transform 160ms var(--mg-ease);
+}
+.md-typeset .mg-card:hover { text-decoration: none; }
+.md-typeset .mg-card:active { transform: scale(.985); }
+@media (hover: hover) and (pointer: fine) { .md-typeset .mg-card:hover { border-color: var(--mg-line); } }
+.mg-card strong { display: block; font-size: 1rem; letter-spacing: -.01em; margin-bottom: .3rem; }
+.mg-card span { color: var(--mg-fg2); font-size: .8rem; line-height: 1.5; display: block; }
+.md-typeset .mg-dev-title { font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: var(--mg-fg2); font-weight: 600; margin: 2rem 0 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .md-typeset .mg-btn, .md-typeset .mg-card { transition: none; }
+}
+@media (max-width: 600px) { .md-typeset h1 { font-size: 2em; } }

@@ -1,0 +1,83 @@
+[project]
+site_name = "Mollygram docs"
+site_description = "Documentation for mollygram, a Telegram client for macOS."
+site_url = "https://docs.mollygram.dev/"
+copyright = "Mollygram is open source, GPL-3.0"
+repo_url = "https://github.com/mollybyte/mollygram"
+repo_name = "mollybyte/mollygram"
+# prepare.py stages ../docs and content/ here.
+docs_dir = "build/docs"
+site_dir = "site"
+extra_css = ["stylesheets/extra.css"]
+
+nav = [
+  { "Home" = "index.md" },
+  { "Product" = [
+    "plugins.md",
+    "privacy-store.md",
+    "calls.md",
+    "roadmap.md",
+  ] },
+  { "For developers" = [
+    "parity.md",
+    "forks-research.md",
+  ] },
+]
+
+[project.theme]
+language = "en"
+logo = "assets/icon.svg"
+favicon = "assets/favicon.ico"
+font = false
+features = [
+  "content.code.copy",
+  "navigation.footer",
+  "navigation.instant",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "toc.follow",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/mollybyte/mollygram"
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+md_in_html = {}
+tables = {}
+toc.permalink = true
+pymdownx.betterem = {}
+pymdownx.details = {}
+pymdownx.highlight = {}
+pymdownx.inlinehilite = {}
+pymdownx.superfences = {}
+pymdownx.tasklist.custom_checkbox = true
+
