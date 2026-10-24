@@ -18,6 +18,10 @@ final class SystemNotification {
     this.subtitle = '',
     this.thread = '',
     this.sound = false,
+    this.soundId = -1,
+    this.soundPath,
+    this.soundSession = '',
+    this.soundFallbackDefault = false,
     this.quiet = false,
     this.canReply = false,
     this.photoPath,
@@ -34,6 +38,10 @@ final class SystemNotification {
   /// Notifications with the same thread are stacked together.
   final String thread;
   final bool sound;
+  final int soundId;
+  final String? soundPath;
+  final String soundSession;
+  final bool soundFallbackDefault;
 
   /// Replaces a shown notification without a new banner.
   final bool quiet;
@@ -176,6 +184,10 @@ final class MacosNotifications implements SystemNotifications {
     'body': n.body,
     'thread': n.thread,
     'sound': n.sound,
+    'soundId': '${n.soundId}',
+    'soundPath': ?n.soundPath,
+    'soundSession': n.soundSession,
+    'soundFallbackDefault': n.soundFallbackDefault,
     'quiet': n.quiet,
     'canReply': n.canReply,
     'photoPath': ?n.photoPath,

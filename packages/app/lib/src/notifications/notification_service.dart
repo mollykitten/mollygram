@@ -10,6 +10,7 @@ import '../home/format.dart';
 import '../home/workspace.dart';
 import '../session/providers.dart';
 import '../settings/privacy/passcode.dart';
+import 'notification_audio.dart';
 import 'notification_settings.dart';
 import 'system_notifications.dart';
 
@@ -23,9 +24,13 @@ final class NotificationService {
     required this._system,
     required this._openChat,
     this._settings = const NotificationSettings(),
+    this._audio,
   });
 
   final NotificationController _controller;
+  final NotificationAudioSession? _audio;
+  var _deliveryQueue = Future<void>.value();
+  final _notificationVersions = <String, Object>{};
   final SystemNotifications _system;
   final void Function(int chatId) _openChat;
   final _subscriptions = <StreamSubscription<Object?>>[];
@@ -65,11 +70,15 @@ final class NotificationService {
     if (next == previous) return;
     _settings = next;
     if (_l10n == null) return;
-    if (next.enabled != previous.enabled) unawaited(_applyEnabled());
+    if (next.enabled != previous.enabled) {
+      if (!next.enabled) _notificationVersions.clear();
+      unawaited(_applyEnabled());
+    }
     unawaited(_updateBadge());
   }
 
   Future<void> _applyEnabled() async {
+    if (_disposed) return;
     final enabled = _settings.enabled;
     if (enabled) {
       await _guard(_system.requestPermission());
@@ -98,17 +107,68 @@ final class NotificationService {
   }
 
   void _onEvent(NotificationEvent event) {
+    Object? version;
+    // Invalidate in-flight sound preparation immediately, not only when its
+    // queued removal eventually runs. Read/deleted notifications must not make
+    // a late banner or sound after a tone download finishes.
     switch (event) {
       case NotificationPosted(:final notification):
-        if (!_settings.enabled) return;
-        if (_l10n case final l10n?) {
-          unawaited(_guard(_system.show(present(notification, l10n))));
-        }
+        if (_disposed || !_settings.enabled) return;
+        version = Object();
+        _notificationVersions[notification.key] = version;
       case NotificationsRemoved(:final keys):
-        unawaited(_guard(_system.remove(keys)));
+        for (final key in keys) {
+          _notificationVersions.remove(key);
+        }
       case NotificationsSynced(:final keys):
-        unawaited(_guard(_system.retain(keys)));
+        _notificationVersions.removeWhere((key, _) => !keys.contains(key));
     }
+    // File preparation must not let a removal overtake its notification.
+    _deliveryQueue = _deliveryQueue
+        .then((_) async {
+          if (_disposed) return;
+          switch (event) {
+            case NotificationPosted(:final notification):
+              if (!_settings.enabled ||
+                  !identical(
+                    _notificationVersions[notification.key],
+                    version,
+                  )) {
+                return;
+              }
+              if (_l10n case final l10n?) {
+                var resource = const NotificationSoundResource();
+                if (_settings.sound &&
+                    notification.playSound &&
+                    !notification.isEdit &&
+                    notification.soundId > 0) {
+                  try {
+                    resource = await _controller.sounds
+                        .resolve(notification.soundId)
+                        .timeout(const Duration(seconds: 2));
+                  } on Object {
+                    // Keep the requested ID, but deliver silently if unavailable.
+                  }
+                }
+                if (_disposed ||
+                    !_settings.enabled ||
+                    !identical(
+                      _notificationVersions[notification.key],
+                      version,
+                    )) {
+                  return;
+                }
+                await _system.show(
+                  present(notification, _l10n ?? l10n, soundResource: resource),
+                );
+              }
+            case NotificationsRemoved(:final keys):
+              await _system.remove(keys);
+            case NotificationsSynced(:final keys):
+              await _system.retain(keys);
+          }
+        })
+        .catchError((Object _) {});
   }
 
   void _onResponse(NotificationResponse response) {
@@ -126,8 +186,9 @@ final class NotificationService {
   /// title, the author of a group message under it, then the text.
   SystemNotification present(
     MessageNotification notification,
-    AppLocalizations l10n,
-  ) {
+    AppLocalizations l10n, {
+    NotificationSoundResource soundResource = const NotificationSoundResource(),
+  }) {
     final preview = _settings.showPreview && notification.showPreview;
     return SystemNotification(
       id: notification.key,
@@ -139,7 +200,17 @@ final class NotificationService {
           ? notificationBody(l10n, notification)
           : l10n.notificationHiddenText,
       thread: 'chat:${notification.chatId}',
-      sound: _settings.sound && notification.playSound && !notification.isEdit,
+      sound:
+          _settings.sound &&
+          notification.playSound &&
+          !notification.isEdit &&
+          (notification.soundId < 0 ||
+              soundResource.path != null ||
+              soundResource.fallbackDefault),
+      soundId: notification.soundId,
+      soundPath: soundResource.path,
+      soundFallbackDefault: soundResource.fallbackDefault,
+      soundSession: _audio?.id ?? '',
       quiet: notification.isEdit,
       canReply: notification.canReply,
       photoPath: notification.photoPath,
@@ -151,12 +222,18 @@ final class NotificationService {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    _notificationVersions.clear();
+    // Enqueue cleanup synchronously, before a replacement account can start.
+    final cleanup = _l10n == null
+        ? Future<void>.value()
+        : Future.wait([
+            _guard(_system.removeAll()),
+            _guard(_system.setBadge(null)),
+          ]);
     for (final subscription in _subscriptions) {
       await subscription.cancel();
     }
-    if (_l10n == null) return;
-    await _guard(_system.removeAll());
-    await _guard(_system.setBadge(null));
+    await cleanup;
   }
 
   /// A notification that can't be shown, or a reply TDLib refuses, is not
@@ -197,6 +274,7 @@ final notificationServiceProvider = Provider.autoDispose<NotificationService>((
   final session = ref.watch(telegramSessionProvider).requireValue;
   final service = NotificationService(
     controller: session.notifications,
+    audio: ref.watch(notificationAudioProvider),
     system: ref.watch(systemNotificationsProvider),
     openChat: (chatId) => ref.read(workspaceControllerProvider).open(chatId),
     settings: _effective(ref),

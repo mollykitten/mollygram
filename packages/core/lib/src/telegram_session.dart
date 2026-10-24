@@ -178,6 +178,7 @@ final class TelegramSession {
     final connection = ConnectionMonitor(client);
     final notifications = NotificationController(
       client,
+      files: files,
       deliberately: guard.deliberately,
     );
     final contacts = ContactsController(client);

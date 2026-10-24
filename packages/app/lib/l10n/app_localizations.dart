@@ -776,6 +776,66 @@ abstract class AppLocalizations {
   /// **'Play sound'**
   String get notificationsSound;
 
+  /// No description provided for @notificationSoundTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification sound'**
+  String get notificationSoundTitle;
+
+  /// No description provided for @notificationSoundDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'System default'**
+  String get notificationSoundDefault;
+
+  /// No description provided for @notificationSoundNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get notificationSoundNone;
+
+  /// No description provided for @notificationSoundSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved Telegram sounds'**
+  String get notificationSoundSaved;
+
+  /// No description provided for @notificationSoundPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get notificationSoundPreview;
+
+  /// No description provided for @notificationSoundUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This sound couldn\'t be played. Try previewing it again.'**
+  String get notificationSoundUnavailable;
+
+  /// No description provided for @notificationSoundHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Sounds saved in Telegram sync across your devices. Unavailable files play silently; removed sounds use the system default. Your selection is kept.'**
+  String get notificationSoundHint;
+
+  /// No description provided for @notificationSoundUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Sound choices sync with Telegram, but native notification delivery and preview are only available on macOS. Windows and Linux do not play notifications yet.'**
+  String get notificationSoundUnsupported;
+
+  /// No description provided for @notificationSoundEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No saved sounds. Add a tone in another Telegram client to use it here.'**
+  String get notificationSoundEmpty;
+
+  /// No description provided for @notificationSoundCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved sound · {id}'**
+  String notificationSoundCustom(String id);
+
   /// No description provided for @notificationsSectionChats.
   ///
   /// In en, this message translates to:

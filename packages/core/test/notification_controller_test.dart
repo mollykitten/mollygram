@@ -213,6 +213,60 @@ void main() {
     expect(changes, NotificationScope.values);
   });
 
+  test(
+    'writes exact default, silent and saved tone IDs without resetting fields',
+    () async {
+      for (final id in [-1, 0, 9876543210123456]) {
+        await controller.updateScopeSettings(
+          NotificationScope.groups,
+          soundId: id,
+        );
+        expect(json.scopeSettings[_scopeTypes[NotificationScope.groups]], {
+          ..._settings,
+          'sound_id': '$id',
+        });
+      }
+    },
+  );
+
+  test('preserves resolved TDLib sound IDs while silent messages and edits stay quiet', () async {
+    for (final id in [-1, 0, 9876543210123456]) {
+      await push(
+        _group(
+          groupId: 1,
+          chatId: 10,
+          soundId: id,
+          added: [_notification(1, _message(id: 55, chatId: 10))],
+        ),
+      );
+      final posted = (events.last as NotificationPosted).notification;
+      expect(posted.soundId, id);
+      expect(posted.playSound, id != 0);
+    }
+    await push(
+      _group(
+        groupId: 1,
+        chatId: 10,
+        soundId: 42,
+        added: [
+          {
+            ..._notification(1, _message(id: 55, chatId: 10)),
+            'is_silent': true,
+          },
+        ],
+      ),
+    );
+    expect((events.last as NotificationPosted).notification.soundId, 42);
+    expect((events.last as NotificationPosted).notification.playSound, isFalse);
+    await push({
+      '@type': 'updateNotification',
+      'notification_group_id': 1,
+      'notification': _notification(1, _message(id: 55, chatId: 10)),
+    });
+    expect((events.last as NotificationPosted).notification.isEdit, isTrue);
+    expect((events.last as NotificationPosted).notification.playSound, isFalse);
+  });
+
   test('turns TDLib notifications on and off', () async {
     await controller.setEnabled(true);
     await controller.setEnabled(false);
