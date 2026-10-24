@@ -11,24 +11,18 @@ hide:
 
 # Documentation
 
-Mollygram is an open source Telegram client written in Flutter on top of TDLib. It runs on macOS now, with Windows and Linux after. This site holds the plugin spec, the encrypted store, call research and the roadmap.
+Mollygram is an open source Telegram client written in Flutter on top of TDLib. It runs on macOS now, with Windows and Linux after. The app is not released yet, and these pages cover only what the code does today.
 
 <div class="mg-actions">
-  <a class="mg-btn" href="https://mollygram.dev">mollygram.dev</a>
+  <a class="mg-btn" href="start/install/">Install from source</a>
+  <a class="mg-btn alt" href="https://mollygram.dev">mollygram.dev</a>
   <a class="mg-btn alt" href="https://github.com/mollybyte/mollygram">GitHub</a>
 </div>
 </div>
 
 <div class="mg-cards">
-  <a class="mg-card" href="plugins/"><strong>Plugins</strong><span>Plugin spec v1.1: manifest, permissions, the <code>mg</code> API.</span></a>
-  <a class="mg-card" href="privacy-store/"><strong>Privacy store</strong><span>Encrypted local store for deleted messages and edit history.</span></a>
-  <a class="mg-card" href="calls/"><strong>Calls</strong><span>Research for 1:1 audio and video calls and screen sharing.</span></a>
-  <a class="mg-card" href="roadmap/"><strong>Roadmap</strong><span>Milestones with their status and exit criteria.</span></a>
-</div>
-
-<p class="mg-dev-title">For developers</p>
-
-<div class="mg-cards">
-  <a class="mg-card" href="parity/"><strong>Parity</strong><span>Per-feature backlog against the official macOS client.</span></a>
-  <a class="mg-card" href="forks-research/"><strong>Forks research</strong><span>What other Telegram forks do and what we take from them.</span></a>
+  <a class="mg-card" href="start/what-is-mollygram/"><strong>Start</strong><span>What Mollygram is, how to build it and how to sign in.</span></a>
+  <a class="mg-card" href="using/tabs-and-split-view/"><strong>Using Mollygram</strong><span>Tabs, split view, the command palette and keyboard shortcuts.</span></a>
+  <a class="mg-card" href="plugins/quick-start/"><strong>Plugin authors</strong><span>Quick start and reference for JavaScript plugins.</span></a>
+  <a class="mg-card" href="project/whats-next/"><strong>Project</strong><span>What's next, FAQ and how to contribute.</span></a>
 </div>

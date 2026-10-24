@@ -2,7 +2,7 @@
 
 Public documentation for mollygram, built with [Zensical](https://zensical.org) and published at **docs.mollygram.dev**.
 
-The texts stay where they are, in [`docs/`](../docs): the README and the packages link to them there. This folder holds only the site config, the home page and the theme.
+Public documentation site config, pages and theme. The engineering notes in [`docs/`](../docs) stay where they are and are not published.
 
 ## Layout
 
@@ -10,17 +10,18 @@ The texts stay where they are, in [`docs/`](../docs): the README and the package
 |---|---|
 | `zensical.toml` | Site config: navigation, theme, palette, Markdown extensions |
 | `requirements.txt` | Zensical, pinned to an exact version |
-| `prepare.py` | Stages `docs/` (pages and all of `docs/assets/`), `content/` and the favicon into `build/docs` (git-ignored) |
-| `content/` | Home page, `stylesheets/extra.css`, `_headers` (noindex on `*.pages.dev` previews) |
+| `prepare.py` | Stages `content/`, `docs/assets/` and the favicon into `build/docs` (git-ignored) |
+| `content/` | Pages,  `stylesheets/extra.css`, `_headers` (noindex on `*.pages.dev` previews) |
 
-`prepare.py` copies the published pages and rewrites links that leave `docs/` (`../packages/...`) into GitHub links, so no file in `docs/` has to change. Fonts, accent colors and the light/dark palette follow `website/src/site.css`; the logo is `docs/assets/icon.svg`, the favicon is `website/public/favicon.ico`, copied by `prepare.py`.
+Fonts, accent colors and the light/dark palette follow `website/src/site.css`; the logo is `docs/assets/icon.svg`, the favicon is `website/public/favicon.ico`, copied by `prepare.py`.
 
-## Published pages
+## Where the pages come from
 
-- **Product:** `plugins.md`, `privacy-store.md`, `calls.md`, `roadmap.md`.
-- **For developers:** `parity.md`, `forks-research.md`. They are internal working notes, but `roadmap.md` links to both, so they are published in a separate section instead of leaving broken links. To hide them, remove them from `PAGES` in `prepare.py` and from `nav` in `zensical.toml`, and edit the two links in `roadmap.md`.
+The pages are written for the site and live in `content/`, in four sections: Start, Using Mollygram, Plugin authors, Project. Only English for now.
 
-To add a page, put it in `docs/`, add it to `PAGES` in `prepare.py` and to `nav` in `zensical.toml`.
+[`docs/`](../docs) holds the engineering notes and the plugin specification. The site does not publish it: `docs/plugins.md` is the spec, the site is the guide, and where they disagree the code wins. Facts on the pages come from the code (`packages/shell`, `packages/app`, `packages/core`, `packages/plugin_host`, `packages/plugin_sdk`), so describe only what the app does today, and put plans on the "What's next" page.
+
+To add a page, put it in `content/` and add it to `nav` in `zensical.toml`.
 
 ## Build and preview locally
 
@@ -33,11 +34,11 @@ zensical serve          # http://localhost:8000
 zensical build --strict # writes site/, fails on warnings
 ```
 
-`zensical serve` does not watch `docs/`: run `python prepare.py` again after editing the texts. A changed `zensical.toml` or `content/` needs `prepare.py` as well.
+`zensical serve` does not watch `content/`: run `python prepare.py` again after editing a page.
 
 ## Deploy
 
-`.github/workflows/docs.yml` builds with `--strict` and deploys to the Cloudflare Pages project `mollygram-docs`: production from `main`, a preview for every pull request. It runs on changes to `docs/**`, `docs-site/**` and the workflow. It uses the same secrets as the website workflow (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`); without them the site is only built. The first run creates the Pages project.
+`.github/workflows/docs.yml` builds with `--strict` and deploys to the Cloudflare Pages project `mollygram-docs`: production from `main`, a preview for every pull request. It runs on changes to `docs/assets/**`, `docs-site/**` and the workflow. It uses the same secrets as the website workflow (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`); without them the site is only built. The first run creates the Pages project.
 
 ### Manual step: the domain
 

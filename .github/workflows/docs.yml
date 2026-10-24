@@ -9,13 +9,13 @@ on:
   push:
     branches: [main]
     paths:
-      - docs/**
+      - docs/assets/**
       - docs-site/**
       - website/public/favicon.ico
       - .github/workflows/docs.yml
   pull_request:
     paths:
-      - docs/**
+      - docs/assets/**
       - docs-site/**
       - website/public/favicon.ico
       - .github/workflows/docs.yml
@@ -62,7 +62,7 @@ jobs:
       - name: Check the build
         working-directory: docs-site/site
         run: |
-          test -s index.html && test -s 404.html && test -s plugins/index.html && test -s search.json && test -s _headers
+          test -s index.html && test -s 404.html && test -s plugins/quick-start/index.html && test -s search.json && test -s _headers
       - name: Deploy to Cloudflare Pages
         id: deploy
         if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
