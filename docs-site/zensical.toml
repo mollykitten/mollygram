@@ -1,6 +1,6 @@
 [project]
 site_name = "Mollygram docs"
-site_description = "Documentation for mollygram, a Telegram client for macOS."
+site_description = "Documentation for mollygram, a desktop Telegram client: macOS now, Windows and Linux next."
 site_url = "https://docs.mollygram.dev/"
 copyright = "Mollygram is open source, GPL-3.0"
 repo_url = "https://github.com/mollybyte/mollygram"

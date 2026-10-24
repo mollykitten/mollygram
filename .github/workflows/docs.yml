@@ -12,14 +12,12 @@ on:
       - docs/**
       - docs-site/**
       - website/public/favicon.ico
-      - website/public/apple-touch-icon.png
       - .github/workflows/docs.yml
   pull_request:
     paths:
       - docs/**
       - docs-site/**
       - website/public/favicon.ico
-      - website/public/apple-touch-icon.png
       - .github/workflows/docs.yml
   workflow_dispatch:
 

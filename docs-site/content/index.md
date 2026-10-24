@@ -11,7 +11,7 @@ hide:
 
 # Documentation
 
-Mollygram is a Telegram client for macOS: native, fast and private by default. These pages describe how its plugins, privacy store and calls work, and where the project is going.
+Mollygram is a desktop Telegram client, macOS now, Windows and Linux next: native, fast and private by default. These pages describe how its plugins, privacy store and calls work, and where the project is going.
 
 <div class="mg-actions">
   <a class="mg-btn" href="https://mollygram.dev">mollygram.dev</a>

@@ -10,10 +10,10 @@ The texts stay where they are, in [`docs/`](../docs): the README and the package
 |---|---|
 | `zensical.toml` | Site config: navigation, theme, palette, Markdown extensions |
 | `requirements.txt` | Zensical, pinned to an exact version |
-| `prepare.py` | Stages `docs/` and `content/` into `build/docs` (git-ignored) |
-| `content/` | Home page, `stylesheets/extra.css`, favicon |
+| `prepare.py` | Stages `docs/` (pages and all of `docs/assets/`), `content/` and the favicon into `build/docs` (git-ignored) |
+| `content/` | Home page, `stylesheets/extra.css`, `_headers` (noindex on `*.pages.dev` previews) |
 
-`prepare.py` copies the published pages and rewrites links that leave `docs/` (`../packages/...`) into GitHub links, so no file in `docs/` has to change. Fonts, accent colors and the light/dark palette follow `website/src/site.css`; the logo is `docs/assets/icon.svg`, the favicon comes from `website/public/`.
+`prepare.py` copies the published pages and rewrites links that leave `docs/` (`../packages/...`) into GitHub links, so no file in `docs/` has to change. Fonts, accent colors and the light/dark palette follow `website/src/site.css`; the logo is `docs/assets/icon.svg`, the favicon is `website/public/favicon.ico`, copied by `prepare.py`.
 
 ## Published pages
 
