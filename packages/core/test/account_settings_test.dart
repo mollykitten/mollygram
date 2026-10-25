@@ -96,6 +96,78 @@ void main() {
     expect(sessions.first.device, 'MacBook Pro, macOS 15.1');
   });
 
+  test('reads a fresh inactive-session period without writing', () async {
+    final (settings, json) = account({
+      'getActiveSessions': {
+        '@type': 'sessions',
+        'sessions': <Object>[],
+        'inactive_session_ttl_days': 43,
+      },
+    });
+    expect(await settings.inactiveSessionTtlDays(), 43);
+    json.responses['getActiveSessions']!['inactive_session_ttl_days'] = 366;
+    expect(await settings.inactiveSessionTtlDays(), 366);
+    expect(json.sent, [
+      {'@type': 'getActiveSessions'},
+      {'@type': 'getActiveSessions'},
+    ]);
+  });
+
+  test('sets every official preset and both TDLib boundaries', () async {
+    final (settings, json) = account({
+      'setInactiveSessionTtl': {'@type': 'ok'},
+    });
+    for (final days in [1, 7, 30, 90, 180, 365, 366]) {
+      await settings.setInactiveSessionTtlDays(days);
+      expect(json.sent.last, {
+        '@type': 'setInactiveSessionTtl',
+        'inactive_session_ttl_days': days,
+      });
+    }
+    expect(json.sent, hasLength(7));
+  });
+
+  test(
+    'rejects invalid periods before sending and invalid server values',
+    () async {
+      final (settings, json) = account({
+        'getActiveSessions': {
+          '@type': 'sessions',
+          'sessions': <Object>[],
+          'inactive_session_ttl_days': 0,
+        },
+        'setInactiveSessionTtl': {'@type': 'ok'},
+      });
+      for (final days in [-1, 0, 367]) {
+        await expectLater(
+          settings.setInactiveSessionTtlDays(days),
+          throwsRangeError,
+        );
+      }
+      expect(json.sent, isEmpty);
+      await expectLater(settings.inactiveSessionTtlDays(), throwsRangeError);
+    },
+  );
+
+  test('propagates period read and write failures', () async {
+    final (settings, _) = account({
+      'getActiveSessions': {'@type': 'error', 'code': 500, 'message': 'Read'},
+      'setInactiveSessionTtl': {
+        '@type': 'error',
+        'code': 400,
+        'message': 'Write',
+      },
+    });
+    await expectLater(
+      settings.inactiveSessionTtlDays(),
+      throwsA(isA<td.TdException>()),
+    );
+    await expectLater(
+      settings.setInactiveSessionTtlDays(30),
+      throwsA(isA<td.TdException>()),
+    );
+  });
+
   test('takes the bio limit from the option when TDLib has it', () async {
     Map<String, Map<String, Object?>> responses(Map<String, Object?> option) =>
         {
