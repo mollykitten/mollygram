@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../avatar/peer_avatar.dart';
 import '../home/format.dart';
 import '../session/providers.dart';
+import 'inactive_session_ttl.dart';
 import 'settings_style.dart';
 
 /// Every session signed in to the account, this one first.
@@ -224,6 +225,9 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
                       ),
                   ],
                 ),
+        ),
+        InactiveSessionTtlSettings(
+          account: ref.watch(telegramSessionProvider).requireValue.account,
         ),
       ],
     );

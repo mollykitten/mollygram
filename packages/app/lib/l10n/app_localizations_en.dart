@@ -1833,6 +1833,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noOtherSessions => 'You\'re signed in on this device only.';
 
   @override
+  String get sessionTtlTitle => 'Automatically terminate old sessions';
+
+  @override
+  String get sessionTtlPeriod => 'If inactive for';
+
+  @override
+  String get sessionTtlHint =>
+      'Devices you don\'t use for this long will be logged out automatically. This does not delete your account.';
+
+  @override
+  String get sessionTtlWeek => '1 week';
+
+  @override
+  String get sessionTtlSaving => 'Saving…';
+
+  @override
+  String get sessionTtlChecking => 'Checking the current period…';
+
+  @override
+  String get sessionTtlLoadFailed =>
+      'Couldn\'t load the auto-termination period.';
+
+  @override
+  String get sessionTtlWriteFailed =>
+      'Couldn\'t save the period. Reload the current setting before trying again.';
+
+  @override
+  String get sessionTtlReadbackFailed =>
+      'The change was accepted, but the current period couldn\'t be verified. Reload to check it.';
+
+  @override
   String get sessionsFailed => 'Couldn\'t load the sessions.';
 
   @override

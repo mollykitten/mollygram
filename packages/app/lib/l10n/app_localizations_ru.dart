@@ -1848,6 +1848,37 @@ class AppLocalizationsRu extends AppLocalizations {
   String get noOtherSessions => 'Вход выполнен только на этом устройстве.';
 
   @override
+  String get sessionTtlTitle => 'Автоматически завершать старые сеансы';
+
+  @override
+  String get sessionTtlPeriod => 'Если неактивны';
+
+  @override
+  String get sessionTtlHint =>
+      'На устройствах, которыми вы не пользуетесь в течение этого срока, сеансы завершатся автоматически. Это не удаляет ваш аккаунт.';
+
+  @override
+  String get sessionTtlWeek => '1 неделя';
+
+  @override
+  String get sessionTtlSaving => 'Сохраняем…';
+
+  @override
+  String get sessionTtlChecking => 'Проверяем текущий срок…';
+
+  @override
+  String get sessionTtlLoadFailed =>
+      'Не удалось загрузить срок завершения сеансов.';
+
+  @override
+  String get sessionTtlWriteFailed =>
+      'Не удалось сохранить срок. Загрузите текущее значение, прежде чем повторить попытку.';
+
+  @override
+  String get sessionTtlReadbackFailed =>
+      'Изменение принято, но проверить текущий срок не удалось. Загрузите значение ещё раз.';
+
+  @override
   String get sessionsFailed => 'Не удалось загрузить сеансы.';
 
   @override
