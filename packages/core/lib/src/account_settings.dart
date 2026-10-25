@@ -215,6 +215,25 @@ final class AccountSettings {
     ];
   }
 
+  /// The server's current auto-termination period, never a local default.
+  /// Kept separate so [activeSessions] retains its list-only contract.
+  Future<int> inactiveSessionTtlDays() async {
+    final result = await _client.send(const td.GetActiveSessions());
+    return RangeError.checkValueInInterval(
+      result.inactiveSessionTtlDays,
+      1,
+      366,
+      'inactiveSessionTtlDays',
+    );
+  }
+
+  /// Changes only the inactivity period. Completes after TDLib acknowledges
+  /// it; callers must read back before presenting a new confirmed value.
+  Future<void> setInactiveSessionTtlDays(int days) async {
+    RangeError.checkValueInInterval(days, 1, 366, 'days');
+    await _client.send(td.SetInactiveSessionTtl(inactiveSessionTtlDays: days));
+  }
+
   /// The business bot connected to the account, or null when there is
   /// none. TDLib asks apps to show it with the active sessions.
   Future<ConnectedBot?> connectedBot() async {

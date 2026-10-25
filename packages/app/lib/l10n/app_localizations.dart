@@ -3110,6 +3110,60 @@ abstract class AppLocalizations {
   /// **'You\'re signed in on this device only.'**
   String get noOtherSessions;
 
+  /// No description provided for @sessionTtlTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically terminate old sessions'**
+  String get sessionTtlTitle;
+
+  /// No description provided for @sessionTtlPeriod.
+  ///
+  /// In en, this message translates to:
+  /// **'If inactive for'**
+  String get sessionTtlPeriod;
+
+  /// No description provided for @sessionTtlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Devices you don\'t use for this long will be logged out automatically. This does not delete your account.'**
+  String get sessionTtlHint;
+
+  /// No description provided for @sessionTtlWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'1 week'**
+  String get sessionTtlWeek;
+
+  /// No description provided for @sessionTtlSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving…'**
+  String get sessionTtlSaving;
+
+  /// No description provided for @sessionTtlChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the current period…'**
+  String get sessionTtlChecking;
+
+  /// No description provided for @sessionTtlLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load the auto-termination period.'**
+  String get sessionTtlLoadFailed;
+
+  /// No description provided for @sessionTtlWriteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save the period. Reload the current setting before trying again.'**
+  String get sessionTtlWriteFailed;
+
+  /// No description provided for @sessionTtlReadbackFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The change was accepted, but the current period couldn\'t be verified. Reload to check it.'**
+  String get sessionTtlReadbackFailed;
+
   /// No description provided for @sessionsFailed.
   ///
   /// In en, this message translates to:
