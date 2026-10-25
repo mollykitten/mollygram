@@ -1,0 +1,99 @@
+[project]
+site_name = "Mollygram docs"
+site_description = "Guides for mollygram, an open source Telegram client: install, use, write plugins."
+site_url = "https://docs.mollygram.dev/"
+copyright = "Mollygram is open source, GPL-3.0"
+repo_url = "https://github.com/mollybyte/mollygram"
+repo_name = "mollybyte/mollygram"
+# prepare.py stages ../docs and content/ here.
+docs_dir = "build/docs"
+site_dir = "site"
+extra_css = ["stylesheets/extra.css"]
+extra_javascript = ["javascripts/neon.js"]
+
+nav = [
+  { "Home" = "index.md" },
+  { "Start" = [
+    "start/what-is-mollygram.md",
+    "start/install.md",
+    "start/sign-in.md",
+  ] },
+  { "Using Mollygram" = [
+    "using/tabs-and-split-view.md",
+    "using/command-palette.md",
+    "using/keyboard-shortcuts.md",
+  ] },
+  { "Plugin authors" = [
+    "plugins/quick-start.md",
+    "plugins/manifest.md",
+    "plugins/permissions.md",
+    "plugins/events.md",
+    "plugins/mg-api.md",
+    "plugins/declarative-ui.md",
+    "plugins/sandbox-limits.md",
+    "plugins/distribution.md",
+  ] },
+  { "Project" = [
+    "project/whats-next.md",
+    "project/faq.md",
+    "project/contributing.md",
+  ] },
+]
+
+[project.theme]
+language = "en"
+logo = "assets/icon.svg"
+favicon = "assets/favicon.ico"
+font = false
+features = [
+  "content.code.copy",
+  "navigation.footer",
+  "navigation.instant",
+  "navigation.path",
+  "navigation.tabs",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "toc.follow",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/mollybyte/mollygram"
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+md_in_html = {}
+tables = {}
+toc.permalink = true
+pymdownx.betterem = {}
+pymdownx.details = {}
+pymdownx.highlight = {}
+pymdownx.inlinehilite = {}
+pymdownx.superfences = {}
+pymdownx.tasklist.custom_checkbox = true
+

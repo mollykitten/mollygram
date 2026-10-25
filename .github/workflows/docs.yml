@@ -1,0 +1,83 @@
+name: Docs
+
+# Builds docs-site/ (Zensical) and deploys it to Cloudflare Pages: production
+# from main, a preview for every pull request. Needs the repository secrets
+# CLOUDFLARE_API_TOKEN (Account > Cloudflare Pages > Edit) and
+# CLOUDFLARE_ACCOUNT_ID. Without them the site is only built.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/assets/**
+      - docs-site/**
+      - website/public/favicon.ico
+      - .github/workflows/docs.yml
+  pull_request:
+    paths:
+      - docs/assets/**
+      - docs-site/**
+      - website/public/favicon.ico
+      - .github/workflows/docs.yml
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: write
+
+env:
+  PROJECT: mollygram-docs
+
+jobs:
+  build-deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'docs' || 'docs-preview' }}
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: docs-site/requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Zensical
+        run: pip install -r docs-site/requirements.txt
+      - name: Build
+        working-directory: docs-site
+        run: |
+          python prepare.py
+          zensical build --strict --clean
+      - name: Check the build
+        working-directory: docs-site/site
+        run: |
+          test -s index.html && test -s 404.html && test -s plugins/quick-start/index.html && test -s search.json && test -s _headers
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        working-directory: docs-site
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          # The first run creates the Pages project.
+          if ! npx --yes wrangler@4 pages project list | grep -qw "$PROJECT"; then
+            npx --yes wrangler@4 pages project create "$PROJECT" --production-branch main
+          fi
+          npx --yes wrangler@4 pages deploy site --project-name "$PROJECT" --branch "$BRANCH" | tee deploy.log
+          url=$(grep -oE 'https://[a-zA-Z0-9.-]+\.pages\.dev' deploy.log | tail -n 1)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed $BRANCH to $url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Note skipped deploy
+        if: steps.deploy.outcome == 'skipped'
+        run: echo "Cloudflare secrets are not set, so the docs were built but not deployed." >> "$GITHUB_STEP_SUMMARY"
