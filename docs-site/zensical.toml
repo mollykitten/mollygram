@@ -3,8 +3,8 @@ site_name = "Mollygram docs"
 site_description = "Guides for mollygram, an open source Telegram client: install, use, write plugins."
 site_url = "https://docs.mollygram.dev/"
 copyright = "Mollygram is open source, GPL-3.0"
-repo_url = "https://github.com/mollybyte/mollygram"
-repo_name = "mollybyte/mollygram"
+repo_url = "https://github.com/mollykitten/mollygram"
+repo_name = "mollykitten/mollygram"
 # prepare.py stages ../docs and content/ here.
 docs_dir = "build/docs"
 site_dir = "site"
@@ -80,7 +80,7 @@ toggle.name = "Switch to system preference"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/mollybyte/mollygram"
+link = "https://github.com/mollykitten/mollygram"
 
 [project.markdown_extensions]
 abbr = {}

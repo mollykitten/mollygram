@@ -11,9 +11,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/mollybyte/mollygram/actions/workflows/ci.yml"><img src="https://github.com/mollybyte/mollygram/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/mollybyte/mollygram?color=D6336C" alt="License"></a>
-  <a href="https://github.com/mollybyte/mollygram/commits/main"><img src="https://img.shields.io/github/last-commit/mollybyte/mollygram?color=D6336C" alt="Last commit"></a>
+  <a href="https://github.com/mollykitten/mollygram/actions/workflows/ci.yml"><img src="https://github.com/mollykitten/mollygram/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/mollykitten/mollygram?color=D6336C" alt="License"></a>
+  <a href="https://github.com/mollykitten/mollygram/commits/main"><img src="https://img.shields.io/github/last-commit/mollykitten/mollygram?color=D6336C" alt="Last commit"></a>
   <img src="https://img.shields.io/badge/status-prototype-D6336C" alt="Status: prototype">
   <a href="https://www.conventionalcommits.org"><img src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-D6336C" alt="Conventional Commits"></a>
 </p>
@@ -70,7 +70,7 @@ The layout follows the official Telegram Desktop, so there is nothing to relearn
 Flutter is installed with [fvm](https://fvm.app). The version is pinned in [`.fvmrc`](.fvmrc) and CI uses the same one. The project tracks the latest stable Flutter.
 
 ```sh
-git clone --recurse-submodules https://github.com/mollybyte/mollygram.git
+git clone --recurse-submodules https://github.com/mollykitten/mollygram.git
 cd mollygram
 fvm install
 fvm flutter pub get

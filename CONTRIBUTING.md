@@ -9,7 +9,7 @@ By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md). Se
 Flutter is managed with [fvm](https://fvm.app); the version is pinned in [`.fvmrc`](.fvmrc).
 
 ```sh
-git clone --recurse-submodules https://github.com/mollybyte/mollygram.git
+git clone --recurse-submodules https://github.com/mollykitten/mollygram.git
 cd mollygram
 fvm install
 fvm flutter pub get

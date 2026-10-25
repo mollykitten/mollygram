@@ -28,4 +28,4 @@ Mollygram has no release yet. The release is milestone M8. The milestones run in
 
 Some work is ahead of its milestone: the plugin sandbox, circle playback and the native library for calls.
 
-The detailed backlog lives in the repository: [`docs/roadmap.md`](https://github.com/mollybyte/mollygram/blob/main/docs/roadmap.md).
+The detailed backlog lives in the repository: [`docs/roadmap.md`](https://github.com/mollykitten/mollygram/blob/main/docs/roadmap.md).
