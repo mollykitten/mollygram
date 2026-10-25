@@ -1,0 +1,54 @@
+// Собственный эскиз. Не интегрирован и не протестирован.
+import 'scope.dart.example';
+
+typedef Attachment = ({String localToken, String name, int bytes});
+// localToken — ссылка на управляемую копию файла; не вечный OS temp path.
+typedef LocalDraft = ({
+  String id,
+  ConversationKey conversation,
+  int revision,
+  String text,
+  List<Attachment> attachments,
+  MessageRef? reply,
+  bool minimized,
+});
+
+class DraftShelf {
+  final Map<ConversationKey, Map<String, LocalDraft>> _drafts = {};
+  final Map<ConversationKey, String> _active = {};
+
+  void save(LocalDraft next) {
+    final shelf = _drafts.putIfAbsent(next.conversation, () => {});
+    final old = shelf[next.id];
+    if (old != null && next.revision <= old.revision) {
+      throw StateError('Stale draft write');
+    }
+    if (next.reply != null && next.reply!.conversation != next.conversation) {
+      throw StateError('Reply belongs to another conversation');
+    }
+    shelf[next.id] = next;
+  }
+
+  LocalDraft activate(ConversationKey conversation, String id) {
+    final draft = _drafts[conversation]?[id];
+    if (draft == null) throw StateError('Missing draft');
+    _active[conversation] = id;
+    return draft;
+  }
+
+  // Событие SendAcknowledged: удалить именно отправленную ревизию.
+  // Если пользователь уже дописал текст, новая ревизия остаётся.
+  void acknowledge(ConversationKey conversation, String id, int revision) {
+    final shelf = _drafts[conversation];
+    if (shelf?[id]?.revision != revision) return;
+    shelf!.remove(id);
+    if (_active[conversation] == id) _active.remove(conversation);
+  }
+}
+
+// События: DraftEdited -> revision+1; Minimized -> сохранить файлы/подпись;
+// Activated -> восстановить; SendFailed -> оставить; SendAcknowledged -> CAS.
+// UX: «Черновики (3)» -> «Ответ клиенту», «Пост с 4 фото», «Личная заметка».
+// Cloud-проекция только выбранного черновика — отдельное решение пользователя.
+// Нужны entities/UTF-16 offsets, album/order, preview, spoiler, TTL, crop edits,
+// права на файлы, квота, шифрование, транзакционное сохранение и уборка копий.
