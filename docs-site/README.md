@@ -12,7 +12,7 @@ Public documentation site config, pages and theme. The engineering notes in [`do
 | `requirements.txt` | Zensical, pinned to an exact version |
 | `neon.py` | Generates the neon tubes SVG for the home page hero (three parallax layers); `prepare.py` injects it into `index.md` |
 | `content/javascripts/neon.js` | Parallax on scroll and pointer: transform only, off with `prefers-reduced-motion` |
-| `prepare.py` | Stages `content/`, `docs/assets/` and the favicon into `build/docs` and writes the header partial (build hash and date, app version from `.release-please-manifest.json`) into `build/overrides` (both git-ignored) |
+| `prepare.py` | Stages `content/`, `docs/assets/` and the favicon into `build/docs` and writes the footer partial (build hash and date, app version from `.release-please-manifest.json`) into `build/overrides` (both git-ignored) |
 | `content/` | Pages,  `stylesheets/extra.css`, `_headers` (noindex on `*.pages.dev` previews) |
 
 Fonts, accent colors and the light/dark palette follow `website/src/site.css`; the logo is `docs/assets/icon.svg`, the favicon is `website/public/favicon.ico`, copied by `prepare.py`.

@@ -6,7 +6,6 @@ engineering notes and the plugin specification (docs/plugins.md); the site does
 not publish them. Only docs/assets (the logo) and the landing's favicon are
 copied in, so there is a single source for them.
 """
-import importlib.util
 import json
 import os
 import re
@@ -56,22 +55,17 @@ def app_version():
     return version if re.fullmatch(r"\d+\.\d+\.\d+\S*", version) and version != "0.0.0" else None
 
 
-def build_line():
+def footer():
     short, full, day = build_info()
     build = escape(short) if full is None else f'<a href="https://github.com/{REPO}/commit/{full}">{short}</a>'
     version = app_version()
     app = f"App v{escape(version)}" if version else "App not released yet"
-    return f'<div class="mg-build"><span>{app}</span><span>docs build {build} · {day}</span></div>'
-
-
-def header_partial():
-    """The theme's header with the build line under the repository link."""
-    theme = Path(importlib.util.find_spec("zensical").submodule_search_locations[0]) / "templates"
-    html = (theme / "partials" / "header.html").read_text(encoding="utf-8")
-    anchor = '{% include "partials/source.html" %}\n      {% endif %}\n'
-    if html.count(anchor) != 1:
-        raise SystemExit("zensical header.html changed: update the anchor in prepare.py")
-    return html.replace(anchor, anchor + "      " + build_line() + "\n")
+    return (
+        '<div class="md-copyright__highlight">\n'
+        "  Mollygram is open source, GPL-3.0\n"
+        f'  <span class="mg-build">{app} · docs build {build} · {day}</span>\n'
+        "</div>\n"
+    )
 
 
 shutil.rmtree(HERE / "build", ignore_errors=True)
@@ -79,10 +73,18 @@ shutil.copytree(CONTENT, OUT)
 shutil.copytree(DOCS / "assets", OUT / "assets", dirs_exist_ok=True)
 shutil.copy2(WEBSITE / "public" / "favicon.ico", OUT / "assets" / "favicon.ico")
 
-# Theme override (theme.custom_dir) that adds the build line to the header.
-header = HERE / "build" / "overrides" / "partials" / "header.html"
-header.parent.mkdir(parents=True)
-header.write_text(header_partial(), encoding="utf-8")
+# The theme override that adds the build line to the footer (theme.custom_dir).
+copyright_partial = HERE / "build" / "overrides" / "partials" / "copyright.html"
+copyright_partial.parent.mkdir(parents=True)
+copyright_partial.write_text(
+    '<div class="md-copyright">\n'
+    + footer()
+    + "{% if not config.extra.generator == false %}\n"
+    '  Made with <a href="https://zensical.org/" target="_blank" rel="noopener">Zensical</a>\n'
+    "{% endif %}\n"
+    "</div>\n",
+    encoding="utf-8",
+)
 
 index = OUT / "index.md"
 index.write_text(index.read_text(encoding="utf-8").replace("<!-- neon-scene -->", scene()), encoding="utf-8")

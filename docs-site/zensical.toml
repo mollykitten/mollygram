@@ -2,7 +2,6 @@
 site_name = "Mollygram docs"
 site_description = "Guides for mollygram, an open source Telegram client: install, use, write plugins."
 site_url = "https://docs.mollygram.dev/"
-copyright = "Mollygram is open source, GPL-3.0"
 repo_url = "https://github.com/mollykitten/mollygram"
 repo_name = "mollykitten/mollygram"
 # prepare.py stages ../docs and content/ here.
@@ -42,7 +41,7 @@ nav = [
 
 [project.theme]
 language = "en"
-# prepare.py writes the header partial (build info, app version) here.
+# prepare.py writes the footer partial (build info, app version) here.
 custom_dir = "build/overrides"
 logo = "assets/icon.svg"
 favicon = "assets/favicon.ico"
