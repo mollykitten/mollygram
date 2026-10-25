@@ -416,4 +416,3 @@ jobs:
             dist/libtdjson-linux-x64.zip.sha256
             dist/tdjson-windows-x64.zip
             dist/tdjson-windows-x64.zip.sha256
-          make_latest: false
