@@ -1,31 +1,31 @@
 # mollygram_ui_kit
 
-The Mollygram design system in Flutter, ported from `design/*.dc.html` and the
+the mollygram design system in Flutter, ported from `design/*.dc.html` and the
 glass prototype from #4.
 
-- **Tokens**: `MgColors.light` / `MgColors.dark` (a `ThemeExtension`),
+- **tokens**: `MgColors.light` / `MgColors.dark` (a `ThemeExtension`),
   `buildMgTheme`, the `MgType` scale and `mgTextStyle` (system font, 13 px).
-- **Glass**: `Glass` and `GlassScope`. Glass is for the floating layer only:
+- **glass**: `Glass` and `GlassScope`. glass is for the floating layer only:
   the sidebar island, the two chat header capsules, the composer and the
-  command palette. Messages and rows stay solid. Wrap the window in one
-  `GlassScope` so all panels share a single backdrop read; `blur: false` is
+  command palette. messages and rows stay solid. wrap the window in one
+  `GlassScope` so all panels share a single backdrop read, `blur: false` is
   the reduced transparency fallback.
-- **Wallpaper**: the four-point Telegram gradient.
-- **Sign-in**: `SignInPage`, `SignInHeader`, `QrFrame`, `SignInSteps`, `PhoneNumberField`, `MgUnderlineField`, `MgPrimaryButton`, `MgTextButton`. Plain window background, no wallpaper and no glass, as in the official Telegram apps.
-- **Widgets**: `SidebarIsland`, `MgSearchField`, `FolderTabBar` / `FolderTab`,
+- **wallpaper**: the four-point telegram gradient.
+- **sign-in**: `SignInPage`, `SignInHeader`, `QrFrame`, `SignInSteps`, `PhoneNumberField`, `MgUnderlineField`, `MgPrimaryButton`, `MgTextButton`. plain window background, no wallpaper and no glass, like in the official telegram apps.
+- **widgets**: `SidebarIsland`, `MgSearchField`, `FolderTabBar` / `FolderTab`,
   `ChatListTile`, `ChatHeaderBar` with `ChatTitleCapsule` and
   `ChatActionsCapsule`, `Composer`, `MessageBubble`, `TextMessageBubble`,
   `MessageMeta`, `DatePill`, `MediaPill`, `MonogramAvatar`, `UnreadBadge`,
   `MgIconButton`, `MgSendButton`, and the `MgIcons` set.
 
-The kit has no strings of its own. Every label, tooltip and placeholder comes
+the kit has no strings of its own. every label, tooltip and placeholder comes
 from the app, which owns localization.
 
-## Tests
+## tests
 
-`flutter test` runs widget tests and golden images (`test/goldens/`). Goldens
-are rendered on Linux, like CI, and are skipped on other hosts. After an
-intended visual change, update them on Linux:
+`flutter test` runs widget tests and golden images (`test/goldens/`). goldens
+are rendered on linux, like CI, and are skipped on other hosts. after an
+intended visual change, update them on linux:
 
 ```sh
 flutter test --update-goldens

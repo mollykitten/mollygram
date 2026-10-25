@@ -18,7 +18,7 @@ Mollygram is an open source Telegram client written in Flutter on top of TDLib. 
 <div class="mg-actions">
   <a class="mg-btn" href="start/install/">Install from source</a>
   <a class="mg-btn alt" href="https://mollygram.dev">mollygram.dev</a>
-  <a class="mg-btn alt" href="https://github.com/mollybyte/mollygram">GitHub</a>
+  <a class="mg-btn alt" href="https://github.com/mollykitten/mollygram">GitHub</a>
 </div>
 </div>
 

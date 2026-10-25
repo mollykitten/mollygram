@@ -32,6 +32,7 @@
 		7A1E0C2E2F00000100A1B2C3 /* VideoNoteCaptureChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C2F2F00000100A1B2C3 /* VideoNoteCaptureChannel.swift */; };
 		7A1E0C302F00000100A1B2C3 /* VideoEditChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C312F00000100A1B2C3 /* VideoEditChannel.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
+		7A1E0C3A2F00000100A1B2C3 /* NotificationToneStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C3B2F00000100A1B2C3 /* NotificationToneStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -88,6 +89,7 @@
 		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = ephemeral/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		7A1E0C3B2F00000100A1B2C3 /* NotificationToneStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationToneStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -177,6 +179,7 @@
 				33CC10F02044A3C60003C045 /* AppDelegate.swift */,
 				33CC11122044BFA00003C045 /* MainFlutterWindow.swift */,
 				7A1E0C2B2F00000100A1B2C3 /* NotificationsChannel.swift */,
+				7A1E0C3B2F00000100A1B2C3 /* NotificationToneStore.swift */,
 				7A1E0C2D2F00000100A1B2C3 /* VoiceCaptureChannel.swift */,
 				7A1E0C2F2F00000100A1B2C3 /* VideoNoteCaptureChannel.swift */,
 				7A1E0C312F00000100A1B2C3 /* VideoEditChannel.swift */,
@@ -388,6 +391,7 @@
 			files = (
 				33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */,
 				7A1E0C2A2F00000100A1B2C3 /* NotificationsChannel.swift in Sources */,
+				7A1E0C3A2F00000100A1B2C3 /* NotificationToneStore.swift in Sources */,
 				7A1E0C2C2F00000100A1B2C3 /* VoiceCaptureChannel.swift in Sources */,
 				7A1E0C2E2F00000100A1B2C3 /* VideoNoteCaptureChannel.swift in Sources */,
 				7A1E0C302F00000100A1B2C3 /* VideoEditChannel.swift in Sources */,

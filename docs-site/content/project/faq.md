@@ -6,7 +6,7 @@ No. Mollygram is an independent open source project. It uses Telegram's public c
 
 ## Can using it put my account at risk?
 
-Telegram's API terms apply to every app that uses an `api_id`, and Telegram decides how it treats an account. Mollygram does not promise anything on Telegram's behalf. The app is unreleased and young. If your account matters a lot, try it first on a spare account. Report any account problem you suspect comes from the app in a [GitHub issue](https://github.com/mollybyte/mollygram/issues).
+Telegram's API terms apply to every app that uses an `api_id`, and Telegram decides how it treats an account. Mollygram does not promise anything on Telegram's behalf. The app is unreleased and young. If your account matters a lot, try it first on a spare account. Report any account problem you suspect comes from the app in a [GitHub issue](https://github.com/mollykitten/mollygram/issues).
 
 ## Why do I need my own `api_id`?
 

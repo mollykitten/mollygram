@@ -198,5 +198,7 @@ body { -webkit-font-smoothing: antialiased; }
   .md-typeset .mg-card:hover { transform: none; }
 }
 
-/* Header: repository name only, no tag, stars or forks. */
-.md-source__facts { display: none; }
+/* Footer build line: app version, docs build hash and date. */
+.mg-build { display: block; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+.mg-build a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.mg-build a:hover { color: var(--md-accent-fg-color); }

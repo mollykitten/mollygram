@@ -8,7 +8,7 @@ The project is in early development. Only the latest release and the `main` bran
 
 ## Reporting a vulnerability
 
-Please **do not open a public issue**. Report the vulnerability privately through [GitHub security advisories](https://github.com/mollybyte/mollygram/security/advisories/new).
+Please **do not open a public issue**. Report the vulnerability privately through [GitHub security advisories](https://github.com/mollykitten/mollygram/security/advisories/new).
 
 Include:
 
