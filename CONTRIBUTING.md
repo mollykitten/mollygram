@@ -1,12 +1,12 @@
-# Contributing to Mollygram
+# contributing to mollygram
 
-Thanks for your interest in Mollygram. This document describes how the project is organized and what a change needs before it can be merged.
+thanks for being here. this doc covers how the project is organized and what a change needs before it can be merged.
 
-By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md). Security issues go through [`SECURITY.md`](SECURITY.md), not public issues.
+by taking part you agree to the [code of conduct](CODE_OF_CONDUCT.md). security issues go through [`SECURITY.md`](SECURITY.md), not public issues.
 
-## Getting started
+## getting started
 
-Flutter is managed with [fvm](https://fvm.app); the version is pinned in [`.fvmrc`](.fvmrc).
+flutter is managed with [fvm](https://fvm.app), the version is pinned in [`.fvmrc`](.fvmrc).
 
 ```sh
 git clone --recurse-submodules https://github.com/mollykitten/mollygram.git
@@ -15,36 +15,36 @@ fvm install
 fvm flutter pub get
 ```
 
-If you already cloned without submodules, run `git submodule update --init --recursive`; the plugin host builds QuickJS from the `quickjs-ng` submodule.
+already cloned without submodules? run `git submodule update --init --recursive`, the plugin host builds quickjs from the `quickjs-ng` submodule.
 
-Run the app from `packages/app` with your own Telegram API keys (see the [README](README.md#development)):
+run the app from `packages/app` with your own telegram api keys (see the [readme](README.md#development)):
 
 ```sh
 cd packages/app
 fvm flutter run -d macos --dart-define-from-file=../../config/telegram.json
 ```
 
-The repository is a [pub workspace](https://dart.dev/tools/pub/workspaces): one `pub get` at the root resolves every package under `packages/`. See the [README](README.md#development) for the package layout and for running the app with your own Telegram API keys.
+the repo is a [pub workspace](https://dart.dev/tools/pub/workspaces): one `pub get` at the root resolves every package under `packages/`. the [readme](README.md#development) has the package layout and the api keys setup.
 
-Before opening a pull request, run the same checks as CI for the packages you touched:
+before opening a pr, run the same checks as ci for the packages you touched:
 
 ```sh
 dart format packages/<name>
 fvm flutter analyze packages/<name>
-cd packages/<name> && fvm flutter test   # or `dart test` for pure Dart packages
+cd packages/<name> && fvm flutter test   # or `dart test` for pure dart packages
 ```
 
-If you change the TDLib schema or the generator, regenerate the bindings with `dart run packages/tdlib/tool/generate.dart` and commit the result.
+if you change the tdlib schema or the generator, regenerate the bindings with `dart run packages/tdlib/tool/generate.dart` and commit the result.
 
-## Language and style
+## language and style
 
-- English is the language of the codebase: identifiers, comments, docs, commit messages, issues and pull requests.
-- Dart code follows [Effective Dart](https://dart.dev/effective-dart) and is formatted with `dart format`. Doc comments use `///`, start with a one-sentence summary, and explain *why* rather than restating the code.
-- UI strings are written in English first. Every user-facing string has a Russian translation that is kept in sync with the English one. In Russian strings only the first word is capitalized ("Режим призрака", not "Режим Призрака").
+- english is the language of the codebase: identifiers, comments, docs, commit messages, issues and prs.
+- dart code follows [effective dart](https://dart.dev/effective-dart) and is formatted with `dart format`. doc comments use `///`, start with a one-sentence summary and explain *why* instead of restating the code.
+- ui strings are written in english first. every user-facing string has a russian translation that stays in sync with the english one. in russian strings only the first word is capitalized ("Режим призрака", not "Режим Призрака").
 
-## Branches
+## branches
 
-Work happens on short-lived branches off `main`, named `<type>/<short-description>`, for example:
+work happens on short-lived branches off `main`, named `<type>/<short-description>`, for example:
 
 ```
 feat/chat-tabs
@@ -52,11 +52,11 @@ fix/circle-playback-stutter
 docs/plugin-permissions
 ```
 
-`main` is always releasable. Do not push to it directly.
+`main` is always releasable. don't push to it directly.
 
-## Commit messages
+## commit messages
 
-Mollygram follows [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/):
+mollygram follows [conventional commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/):
 
 ```
 <type>(<scope>): <description>
@@ -68,26 +68,26 @@ Mollygram follows [Conventional Commits 1.0.0](https://www.conventionalcommits.o
 
 - **type** is one of:
 
-  | Type | Use for | Version bump |
+  | type | use for | version bump |
   |---|---|---|
-  | `feat` | A new user-facing feature | minor |
-  | `fix` | A bug fix | patch |
-  | `perf` | A performance improvement | patch |
-  | `refactor` | Code change that neither fixes a bug nor adds a feature | none |
-  | `docs` | Documentation only | none |
-  | `test` | Adding or fixing tests | none |
-  | `build` | Build system, dependencies, Flutter or TDLib version | none |
-  | `ci` | CI and release workflows | none |
-  | `style` | Formatting, no code change | none |
-  | `chore` | Anything else that does not touch shipped code | none |
-  | `revert` | Reverting an earlier commit | depends |
+  | `feat` | a new user-facing feature | minor |
+  | `fix` | a bug fix | patch |
+  | `perf` | a performance improvement | patch |
+  | `refactor` | code change that neither fixes a bug nor adds a feature | none |
+  | `docs` | documentation only | none |
+  | `test` | adding or fixing tests | none |
+  | `build` | build system, dependencies, flutter or tdlib version | none |
+  | `ci` | ci and release workflows | none |
+  | `style` | formatting, no code change | none |
+  | `chore` | anything else that doesn't touch shipped code | none |
+  | `revert` | reverting an earlier commit | depends |
 
 - **scope** is optional and names the area: `app`, `core`, `tdlib`, `ui_kit`, `media`, `shell`, `plugin_host`, `plugin_sdk`, `plugins_ui`, `calls`, `design`, `web`, `docs`, `ci`, `deps`, `release`.
-- **description** is imperative, lowercase, without a trailing period: `add split view for two chats`, not `Added split view.`
-- A gitmoji may follow the colon if you like: `feat(app): ✨ add split view for two chats`. Keep the type first, because the changelog and release tooling read it.
-- Breaking changes add `!` after the type or scope and explain the change in a `BREAKING CHANGE:` footer.
+- **description** is imperative, lowercase, no trailing period: `add split view for two chats`, not `Added split view.`
+- a gitmoji may follow the colon if you like: `feat(app): ✨ add split view for two chats`. keep the type first, the changelog and release tooling read it.
+- breaking changes add `!` after the type or scope and explain the change in a `BREAKING CHANGE:` footer.
 
-Examples:
+examples:
 
 ```
 feat(app): add command palette on cmd+k
@@ -99,32 +99,32 @@ feat(plugin_sdk)!: rename onMessage to onMessageRender
 BREAKING CHANGE: plugins must subscribe to message.render instead of message.
 ```
 
-## Pull requests
+## pull requests
 
-- Keep a pull request focused on one change. Fill in the [pull request template](.github/pull_request_template.md).
-- **The PR title must be a Conventional Commit** (`feat(app): add chat tabs`). CI checks it, because pull requests are squash-merged and the title becomes the commit on `main`.
-- CI must be green: format, analyze, codegen check and tests. Pull requests run these on Linux only; the macOS, Windows and Linux builds run after merge to `main`. Add the `full-ci` label to run the builds on a pull request, for example when you change native code or platform folders.
-- Include screenshots or a short recording for UI changes, in both light and dark themes.
-- New features need tests where it is practical; bug fixes need a test that reproduces the bug.
+- keep a pr focused on one change. fill in the [pr template](.github/pull_request_template.md).
+- **the pr title must be a conventional commit** (`feat(app): add chat tabs`). ci checks it, prs are squash-merged and the title becomes the commit on `main`.
+- ci must be green: format, analyze, codegen check and tests. prs run these on linux only, the macOS, windows and linux builds run after merge to `main`. add the `full-ci` label to run the builds on a pr, for example when you touch native code or platform folders.
+- ui changes need screenshots or a short recording, in both light and dark themes.
+- new features need tests where it's practical, bug fixes need a test that reproduces the bug.
 
-## Versioning and releases
+## versioning and releases
 
-Mollygram follows [Semantic Versioning](https://semver.org). While the version is `0.x`, a minor bump may contain breaking changes.
+mollygram follows [semver](https://semver.org). while the version is `0.x`, a minor bump may contain breaking changes.
 
-Releases are automated with [release-please](https://github.com/googleapis/release-please):
+releases are automated with [release-please](https://github.com/googleapis/release-please):
 
-1. Every push to `main` updates a release pull request titled `chore: release <version>`. It bumps the version in [`packages/app/pubspec.yaml`](packages/app/pubspec.yaml) and [`.release-please-manifest.json`](.release-please-manifest.json) and adds the new entries to [`CHANGELOG.md`](CHANGELOG.md), all derived from the commit messages.
-2. Merging the release pull request creates the `v<version>` tag and the GitHub release.
-3. The [release workflow](.github/workflows/release.yml) builds macOS, Windows and Linux and attaches the archives to that release.
+1. every push to `main` updates a release pr titled `chore: release <version>`. it bumps the version in [`packages/app/pubspec.yaml`](packages/app/pubspec.yaml) and [`.release-please-manifest.json`](.release-please-manifest.json) and adds new entries to [`CHANGELOG.md`](CHANGELOG.md), all derived from commit messages.
+2. merging the release pr creates the `v<version>` tag and the github release.
+3. the [release workflow](.github/workflows/release.yml) builds macOS, windows and linux and attaches the archives to that release.
 
-Do not edit `CHANGELOG.md` or version numbers by hand; write a good commit message instead.
+don't edit `CHANGELOG.md` or version numbers by hand, write a good commit message instead.
 
-Before the first app release, keep [`.release-please-manifest.json`](.release-please-manifest.json) empty (`{}`): it tracks released versions, not the development version in `pubspec.yaml`. The [`initial-version` setting](release-please-config.json) selects `0.1.0` for the first release PR; leave the app's `0.1.0+1` development version unchanged until that PR updates it. This is release-please's documented [manual bootstrap](https://github.com/googleapis/release-please/blob/main/docs/manifest-releaser.md#bootstrap-manually). Once the first release PR is merged, release-please owns the manifest too.
+before the first app release, keep [`.release-please-manifest.json`](.release-please-manifest.json) empty (`{}`): it tracks released versions, not the dev version in `pubspec.yaml`. the [`initial-version` setting](release-please-config.json) picks `0.1.0` for the first release pr, so leave the app's `0.1.0+1` dev version alone until that pr updates it. this is release-please's documented [manual bootstrap](https://github.com/googleapis/release-please/blob/main/docs/manifest-releaser.md#bootstrap-manually). after the first release pr is merged, release-please owns the manifest too.
 
-## Plugins
+## plugins
 
-The plugin API and manifest format are documented in [`docs/plugins.md`](docs/plugins.md). Changes to the plugin SDK are part of the public API: mark breaking ones with `!`.
+the plugin api and manifest format are documented in [`docs/plugins.md`](docs/plugins.md). changes to the plugin sdk are part of the public api, mark breaking ones with `!`.
 
-## License
+## license
 
-By contributing you agree that your contributions are licensed under the [GPL-3.0](LICENSE).
+by contributing you agree that your contributions are licensed under the [gpl-3.0](LICENSE).

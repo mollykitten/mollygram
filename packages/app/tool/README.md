@@ -1,13 +1,13 @@
-# Native notification tone smoke probe (macOS)
+# native notification tone smoke probe (macOS)
 
-The probe exercises the production `NotificationToneStore`: MP3 decoding to
+the probe exercises the production `NotificationToneStore`: MP3 decoding to
 PCM CAF, default/silent/quiet selection, actual `AVAudioPlayer` playback,
 account namespaces, invalid-file rejection and converted-file cleanup.
-It does **not** sign in, change an account, ask for notification permission,
-or post to Notification Center. Playback is a short generated tone at 10%
-volume; do not run it if audible output would be disruptive.
+it does **not** sign in, change an account, ask for notification permission,
+or post to Notification Center. playback is a short generated tone at 10%
+volume, so don't run it if audible output would be disruptive.
 
-From the repository root, with Xcode command-line tools and `ffmpeg` installed:
+from the repository root, with xcode command-line tools and `ffmpeg` installed:
 
 ```sh
 work="$(mktemp -d "${TMPDIR%/}/mollygram-tone-probe.XXXXXX")"
@@ -18,8 +18,8 @@ swiftc packages/app/macos/Runner/NotificationToneStore.swift \
 "$work/probe" "$work/probe.mp3" "$work/Sounds"
 ```
 
-The final lines must report `PASS missing input fails closed` and
+the final lines must report `PASS missing input fails closed` and
 `PASS default/silent/quiet/custom PCM CAF/native playback/account isolation/cleanup`.
-The MP3 is generated locally; there are no copied Telegram audio assets.
-This native probe complements, rather than replaces, Flutter/core tests and
-an actual macOS application build.
+the MP3 is generated locally, there are no copied telegram audio assets.
+this native probe complements Flutter/core tests and an actual macOS
+application build, it doesn't replace them.
