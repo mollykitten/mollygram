@@ -400,6 +400,9 @@ jobs:
         with:
           tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
+          # A pre-release, so /releases/latest stays reserved for the app.
+          prerelease: true
+          make_latest: false
           name: TDLib ${{ needs.pin.outputs.version }}
           body: |
             libtdjson ${{ needs.pin.outputs.version }} built from tdlib/td@${{ needs.pin.outputs.commit }}:

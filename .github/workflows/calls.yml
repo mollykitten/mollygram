@@ -191,11 +191,13 @@ jobs:
               dist/libmgcalls-macos-universal.zip \
               dist/libmgcalls-macos-universal.zip.sha256
           else
+            # A pre-release, so the docs site (GitHub /releases/latest) shows the app version.
             gh release create "$tag" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
               --title "libmgcalls ${GITHUB_SHA::7}" \
               --notes-file notes.md \
+              --prerelease \
               --latest=false \
               dist/libmgcalls-macos-universal.zip \
               dist/libmgcalls-macos-universal.zip.sha256
