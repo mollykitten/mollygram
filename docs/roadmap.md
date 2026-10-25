@@ -33,7 +33,7 @@ Updated 2026-10-15.
 | M3 | Privacy extras | in progress | Ghost mode, saved deleted messages, edit history, local encrypted store, EXIF stripping, risky switches from [forks-research.md](forks-research.md) | A second-account test shows no read, typing or online leaks in ghost mode, and a deleted message stays visible with a mark |
 | M4 | Media quality | partial | Circle recording at up to 640×640 and 120 fps, uncompressed sending by default, media editor, parallel downloads, PiP | A circle recorded in Mollygram plays correctly in the official iOS and Android clients |
 | M5 | Plugins | partial (#6, #18) | Install from file, update consent, the three mock plugins (code highlight, quiet hours, translator), app services for plugins | A hostile test plugin cannot leave its permissions or stall the UI |
-| M6 | Chats and account management | not started | Create and manage groups and channels, admin tools, contacts, own profile, privacy settings, folder editor, secret chats, multiple accounts | Everything in TelegramSwift's chat and account management is there |
+| M6 | Chats and account management | in progress | Create and manage groups and channels, admin tools, contacts, own profile, privacy settings, secret chats. Done early: folder editor and multiple accounts (up to 3, one running at a time, see [parity.md](parity.md)) | Everything in TelegramSwift's chat and account management is there |
 | M7 | Settings parity | not started | Every section of official Settings: notifications, data and storage, appearance, language, passcode, proxy, stickers | Settings walk-through against TelegramSwift finds nothing missing |
 | M8 | Calls and macOS release | research done, native lib builds (#13, #20, #22) | 1:1 audio and video calls, screen sharing ([calls.md](calls.md)); signing, notarization, Sparkle auto-update with a beta channel | A 30-minute video call with official iOS holds; a `v*` tag gives installers that open without Gatekeeper warnings and update the previous version |
 | M9 | After release | — | Windows and Linux builds polished; group calls and live streams; Telegram platform: stories, Premium, mini apps, payments and Stars, Business, Instant View, statistics; deleted-message sync across devices | — |
@@ -60,7 +60,7 @@ places. This is how they were settled.
 | Media quality | Stage 6, before plugins | Spread over M2 | M4, its own milestone |
 | Plugins | Stage 7 | Not a milestone | M5, its own milestone |
 | Proxy, archive, folder editor | Stage 2 foundation | M1 archive, M3 folders, M4 proxy | Archive M1, folders M6, proxy M7 (TDLib proxy is a settings page, not foundation) |
-| Multiple accounts | Stage 4 with tabs | M3 | UI in M6; per-account data folders as an early M1 tech item (see below) |
+| Multiple accounts | Stage 4 with tabs | M3 | UI done early (up to 3 accounts, listed under M6); per-account data folders as an early M1 tech item (see below) |
 | Secret chats | Stage 5 privacy | M3 | M6 |
 | Stories, Premium, mini apps, payments | Stages 6–7 | M7 | M9, after release |
 | Group calls and live streams | Stage 8, in the release | M6 | M9; v1 is 1:1 calls and screen sharing, as decided on 2026-10-14 |
