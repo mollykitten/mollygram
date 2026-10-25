@@ -45,3 +45,8 @@ packages/tdlib/native/
 
 # Golden test failure artifacts
 **/test/failures/
+
+# Machine-local agent configuration and state
+.claude/settings.local.json
+.superset/config.local.json
+__pycache__/
