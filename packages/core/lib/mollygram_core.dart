@@ -32,6 +32,7 @@ export 'src/privacy_settings_controller.dart';
 export 'src/proxy_controller.dart';
 export 'src/saved_tags.dart';
 export 'src/saved_topics.dart';
+export 'src/search_suggestions.dart';
 export 'src/secret_chats.dart';
 export 'src/sticker_library.dart';
 export 'src/sticker_sets_controller.dart';

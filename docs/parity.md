@@ -163,7 +163,7 @@ of real use without crashes; passing tests alone does not establish that.
 | Search inside a chat, by sender, by date | done | ⌘F capsule with result arrows (`chat_search/`), a calendar button that jumps to a day and, in groups, a member picker that narrows the results to one sender | S | M2 |
 | Hashtag and cashtag search | done | A tapped hashtag or cashtag opens a results sheet with This chat, My messages and Public posts tabs (`searchChatMessages`, `searchMessages`, `searchPublicMessagesByTag`), paged as it scrolls; a row opens the message in its chat | | M2 |
 | Search filters (media, links, files, voice) | done | The shared media tabs and, in ⌘F, a filter button whose menu narrows the results to media, files, links, voice or music, shown as a chip before the query | S | M2 |
-| Recent searches and top peers | missing | | S | M2 |
+| Recent searches and top peers | done | Empty global palette reads TDLib's recent chats and ranked top users; explicit chat selection records search metadata only. Per-item removal and confirmed clear retain history on failure; account replacement invalidates stale results, and loading/error/retry, keyboard selection and existing search prefixes remain supported | S | M2 |
 
 ### Profiles and info panels
 

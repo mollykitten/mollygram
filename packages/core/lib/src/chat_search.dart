@@ -62,6 +62,30 @@ final class ChatSearch {
     return ids.take(limit).toList();
   }
 
+  /// Account-owned recent search metadata, stored by TDLib (not queries).
+  Future<List<int>> recentChats({int limit = 20}) async => (await _client.send(
+    td.SearchRecentlyFoundChats(query: '', typeFilter: null, limit: limit),
+  )).chatIds;
+
+  /// Server-backed frequently contacted people, in Telegram's ranking order.
+  Future<List<int>> topPeers({int limit = 5}) async => (await _client.send(
+    td.GetTopChats(category: const td.TopChatCategoryUsers(), limit: limit),
+  )).chatIds;
+
+  /// Record only a deliberately selected chat, never keystrokes or messages.
+  Future<void> rememberChat(int chatId) async {
+    await _client.send(td.AddRecentlyFoundChat(chatId: chatId));
+  }
+
+  Future<void> removeRecentChat(int chatId) async {
+    await _client.send(td.RemoveRecentlyFoundChat(chatId: chatId));
+  }
+
+  /// Clears search metadata only; does not delete any chats or messages.
+  Future<void> clearRecentChats() async {
+    await _client.send(const td.ClearRecentlyFoundChats());
+  }
+
   /// Messages in all chats that contain [query], newest first.
   Future<List<FoundMessage>> messages(String query, {int limit = 8}) async {
     final text = query.trim();

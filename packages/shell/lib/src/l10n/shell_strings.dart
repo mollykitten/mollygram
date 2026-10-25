@@ -24,6 +24,20 @@ abstract interface class ShellStrings {
   String get hintPrefixes;
 
   String get groupRecent;
+  String get groupRecentSearches;
+  String get groupTopPeers;
+  String get loadingSuggestions;
+  String get emptySuggestions;
+  String get suggestionsFailed;
+  String get recentUpdateFailed;
+  String get searchFailed;
+  String get retry;
+  String get clearRecentSearches;
+  String get confirmClearRecentSearches;
+  String get clearRecentExplanation;
+  String get clear;
+  String get cancel;
+  String removeRecentSearch(String name);
   String get groupChats;
   String get groupPeople;
   String get groupMessages;
@@ -75,6 +89,36 @@ class _En implements ShellStrings {
 
   @override
   String get groupRecent => 'Recent';
+  @override
+  String get groupRecentSearches => 'Recent searches';
+  @override
+  String get groupTopPeers => 'Top peers';
+  @override
+  String get loadingSuggestions => 'Loading suggestions…';
+  @override
+  String get emptySuggestions => 'No recent searches or top peers yet';
+  @override
+  String get suggestionsFailed => 'Couldn’t load search suggestions.';
+  @override
+  String get recentUpdateFailed =>
+      'Couldn’t update recent searches. Try again.';
+  @override
+  String get searchFailed => 'Search failed. Try again.';
+  @override
+  String get retry => 'Retry';
+  @override
+  String get clearRecentSearches => 'Clear recent searches';
+  @override
+  String get confirmClearRecentSearches => 'Clear recent searches?';
+  @override
+  String get clearRecentExplanation =>
+      'Only the search list will be cleared. Your chats and messages stay.';
+  @override
+  String get clear => 'Clear';
+  @override
+  String get cancel => 'Cancel';
+  @override
+  String removeRecentSearch(String name) => 'Remove $name from recent searches';
   @override
   String get groupChats => 'Chats';
   @override
@@ -147,6 +191,36 @@ class _Ru implements ShellStrings {
 
   @override
   String get groupRecent => 'Недавние';
+  @override
+  String get groupRecentSearches => 'Недавние поиски';
+  @override
+  String get groupTopPeers => 'Частые контакты';
+  @override
+  String get loadingSuggestions => 'Загружаем подсказки…';
+  @override
+  String get emptySuggestions => 'Пока нет недавних поисков и частых контактов';
+  @override
+  String get suggestionsFailed => 'Не удалось загрузить подсказки поиска.';
+  @override
+  String get recentUpdateFailed =>
+      'Не удалось изменить недавние поиски. Попробуйте ещё раз.';
+  @override
+  String get searchFailed => 'Не удалось выполнить поиск. Попробуйте ещё раз.';
+  @override
+  String get retry => 'Повторить';
+  @override
+  String get clearRecentSearches => 'Очистить недавние поиски';
+  @override
+  String get confirmClearRecentSearches => 'Очистить недавние поиски?';
+  @override
+  String get clearRecentExplanation =>
+      'Очистится только список поиска. Чаты и сообщения останутся.';
+  @override
+  String get clear => 'Очистить';
+  @override
+  String get cancel => 'Отмена';
+  @override
+  String removeRecentSearch(String name) => 'Убрать $name из недавних поисков';
   @override
   String get groupChats => 'Чаты';
   @override

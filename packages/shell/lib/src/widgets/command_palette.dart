@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
@@ -66,10 +67,20 @@ class _CommandPaletteState extends State<CommandPalette> {
   List<PaletteGroup> _groups = const [];
   List<PaletteItem> _flat = const [];
   int _selected = 0;
+  bool _selectionTouched = false;
 
   /// Bumped per query so a slow search cannot overwrite a newer one.
   int _generation = 0;
   bool _built = false;
+  bool _searching = false;
+  bool _searchFailed = false;
+  bool _confirmClear = false;
+
+  SearchSuggestionsDirectory? get _suggestions => switch (widget.directory) {
+    final SearchSuggestionsDirectory source => source,
+    _ => null,
+  };
+  bool get _emptyQuery => _query == const PaletteQuery(PaletteMode.all, '');
 
   @override
   void initState() {
@@ -78,47 +89,124 @@ class _CommandPaletteState extends State<CommandPalette> {
     // Autofocus would lose to the window's focused shortcut scope.
     _focus.requestFocus();
     _refresh();
+    _suggestions?.addListener(_onSuggestions);
+    if (_emptyQuery) unawaited(_suggestions?.loadSearchSuggestions());
   }
 
   @override
   void didUpdateWidget(CommandPalette old) {
     super.didUpdateWidget(old);
+    if (old.directory != widget.directory) {
+      if (old.directory case final SearchSuggestionsDirectory previous) {
+        previous.removeListener(_onSuggestions);
+      }
+      _suggestions?.addListener(_onSuggestions);
+      _confirmClear = false;
+      // A query belongs to the old account too. Do not silently send its text
+      // through the replacement account's search APIs.
+      _text.removeListener(_onText);
+      _text.clear();
+      _text.addListener(_onText);
+      _focus.requestFocus();
+    }
     if (old.directory != widget.directory || old.commands != widget.commands) {
       _search = PaletteSearch(
         directory: widget.directory,
         commands: widget.commands,
       );
       _refresh(force: true);
+      if (old.directory != widget.directory && _emptyQuery) {
+        unawaited(_suggestions?.loadSearchSuggestions());
+      }
     }
   }
 
   @override
   void dispose() {
+    _suggestions?.removeListener(_onSuggestions);
     _text.dispose();
     _focus.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
-  void _onText() => _refresh();
+  void _onText() {
+    final wasEmpty = _emptyQuery;
+    _refresh();
+    if (!wasEmpty && _emptyQuery) {
+      unawaited(_suggestions?.loadSearchSuggestions());
+    }
+  }
+
+  void _onSuggestions() {
+    if (!mounted || !_emptyQuery) return;
+    final entries = [
+      for (final group in _groups)
+        for (final item in group.items) (group.kind, item),
+    ];
+    final previous = _selectionTouched
+        ? entries.elementAtOrNull(_selected)
+        : null;
+    _show(_search.runSync(_query) ?? const [], resetScroll: false);
+    // Group identity distinguishes a recent row from the same top peer.
+    if (previous != null) {
+      final next = [
+        for (final group in _groups)
+          for (final item in group.items) (group.kind, item),
+      ];
+      final index = next.indexWhere((entry) {
+        if (entry.$1 != previous.$1) return false;
+        final oldItem = previous.$2;
+        final newItem = entry.$2;
+        return switch ((oldItem, newItem)) {
+          (ChatPaletteItem(chat: final a), ChatPaletteItem(chat: final b)) =>
+            a.id == b.id,
+          (
+            CommandPaletteItem(command: final a),
+            CommandPaletteItem(command: final b),
+          ) =>
+            a.id == b.id,
+          _ => false,
+        };
+      });
+      if (index >= 0) _selected = index;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final context = _selectedKey.currentContext;
+        if (mounted && context != null) Scrollable.ensureVisible(context);
+      });
+    }
+  }
 
   Future<void> _refresh({bool force = false}) async {
     final query = PaletteQuery.parse(_text.text);
     if (!force && query == _query && _generation > 0) return;
     _query = query;
+    _selectionTouched = false;
     final generation = ++_generation;
+    _searching = false;
+    _searchFailed = false;
     final ready = _search.runSync(query);
     if (ready != null) {
       _show(ready);
       return;
     }
-    // Earlier results stay on screen until the search answers.
-    final groups = await _search.run(query);
-    if (!mounted || generation != _generation) return;
-    _show(groups);
+    // Never activate results from a different query or account while waiting.
+    _searching = true;
+    _show(const []);
+    try {
+      final groups = await _search.run(query);
+      if (!mounted || generation != _generation) return;
+      _searching = false;
+      _show(groups);
+    } catch (_) {
+      if (!mounted || generation != _generation) return;
+      _searching = false;
+      _searchFailed = true;
+      _show(const []);
+    }
   }
 
-  void _show(List<PaletteGroup> groups) {
+  void _show(List<PaletteGroup> groups, {bool resetScroll = true}) {
     void apply() {
       _groups = groups;
       _flat = [for (final g in groups) ...g.items];
@@ -132,11 +220,12 @@ class _CommandPaletteState extends State<CommandPalette> {
     } else {
       setState(apply);
     }
-    if (_scroll.hasClients) _scroll.jumpTo(0);
+    if (resetScroll && _scroll.hasClients) _scroll.jumpTo(0);
   }
 
   void _move(int delta) {
     if (_flat.isEmpty) return;
+    _selectionTouched = true;
     setState(() => _selected = (_selected + delta).clamp(0, _flat.length - 1));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = _selectedKey.currentContext;
@@ -160,12 +249,20 @@ class _CommandPaletteState extends State<CommandPalette> {
   }
 
   void _activate(int index, OpenTarget target) {
-    if (index < 0 || index >= _flat.length) return;
+    if (_confirmClear || _searching || index < 0 || index >= _flat.length) {
+      return;
+    }
     final item = _flat[index];
+    final suggestions = _suggestions;
     // Close first: a command may open another overlay or move focus.
     widget.onClose();
     switch (item) {
       case ChatPaletteItem(:final chat):
+        // Only explicit chat selection records metadata, not typing, message
+        // selection, ordinary chat navigation or restored workspace panes.
+        unawaited(
+          suggestions?.rememberSearchChat(chat.id).catchError((Object _) {}),
+        );
         widget.onOpenChat(chat.id, target);
       case MessagePaletteItem(:final message):
         final open = widget.onOpenMessage;
@@ -184,6 +281,16 @@ class _CommandPaletteState extends State<CommandPalette> {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
+
+    if (key == LogicalKeyboardKey.escape && event is KeyDownEvent) {
+      if (_confirmClear) {
+        _cancelClear();
+      } else {
+        widget.onClose();
+      }
+      return KeyEventResult.handled;
+    }
+    if (_confirmClear || !_focus.hasFocus) return KeyEventResult.ignored;
     if (key == LogicalKeyboardKey.arrowDown) {
       _move(1);
       return KeyEventResult.handled;
@@ -193,10 +300,7 @@ class _CommandPaletteState extends State<CommandPalette> {
       return KeyEventResult.handled;
     }
     if (event is KeyRepeatEvent) return KeyEventResult.ignored;
-    if (key == LogicalKeyboardKey.escape) {
-      widget.onClose();
-      return KeyEventResult.handled;
-    }
+
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter) {
       _activate(_selected, _targetFromModifiers());
@@ -208,6 +312,8 @@ class _CommandPaletteState extends State<CommandPalette> {
   String _groupTitle(PaletteGroupKind kind) {
     final s = widget.strings;
     return switch (kind) {
+      PaletteGroupKind.top => s.groupTopPeers,
+      PaletteGroupKind.recentSearches => s.groupRecentSearches,
       PaletteGroupKind.recent => s.groupRecent,
       PaletteGroupKind.chats => s.groupChats,
       PaletteGroupKind.people => s.groupPeople,
@@ -223,6 +329,112 @@ class _CommandPaletteState extends State<CommandPalette> {
     PaletteMode.messages => widget.strings.groupMessages,
   };
 
+  void _cancelClear() {
+    setState(() => _confirmClear = false);
+    _focus.requestFocus();
+  }
+
+  void _askClear() {
+    if (_suggestions?.searchSuggestions.busy ?? true) return;
+    _focus.unfocus();
+    setState(() => _confirmClear = true);
+  }
+
+  Widget _clearConfirmation(MgColors c) {
+    final s = widget.strings;
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (_, event) {
+        // Safe default: Enter cancels unless the Clear button has focus.
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.enter) {
+          _cancelClear();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              s.confirmClearRecentSearches,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: c.fg,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              s.clearRecentExplanation,
+              style: TextStyle(color: c.fg2, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                MgTextButton(label: s.cancel, onPressed: _cancelClear),
+                const SizedBox(width: 8),
+                MgTextButton(
+                  label: s.clear,
+                  onPressed: () {
+                    final source = _suggestions;
+                    if (source == null || source.searchSuggestions.busy) return;
+                    _cancelClear();
+                    unawaited(source.clearRecentSearches());
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _status(MgColors c) {
+    final s = widget.strings;
+    final state = _emptyQuery ? _suggestions?.searchSuggestions : null;
+    final String label;
+    VoidCallback? retry;
+    if (_searchFailed) {
+      label = s.searchFailed;
+      retry = () {
+        _focus.requestFocus();
+        unawaited(_refresh(force: true));
+      };
+    } else if (_searching || (state?.loading ?? false)) {
+      label = s.loadingSuggestions;
+    } else if (state?.actionFailed ?? false) {
+      label = s.recentUpdateFailed;
+    } else if (state?.loadFailed ?? false) {
+      label = s.suggestionsFailed;
+      retry = state!.busy
+          ? null
+          : () => unawaited(_suggestions?.loadSearchSuggestions());
+    } else if (state != null && state.recent.isEmpty && state.top.isEmpty) {
+      label = s.emptySuggestions;
+    } else {
+      return const SizedBox.shrink();
+    }
+    return Semantics(
+      liveRegion: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label, style: TextStyle(fontSize: 12, color: c.fg2)),
+            ),
+            if (retry != null) MgTextButton(label: s.retry, onPressed: retry),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     _built = true;
@@ -231,23 +443,25 @@ class _CommandPaletteState extends State<CommandPalette> {
     final base = DefaultTextStyle.of(context).style
         .copyWith(color: c.fg, fontSize: 13);
     final modeLabel = _modeLabel;
-    final showEmpty = _flat.isEmpty && _query.text.isNotEmpty;
+    final showEmpty =
+        _flat.isEmpty &&
+        _query.text.isNotEmpty &&
+        !_searching &&
+        !_searchFailed;
 
-    final field = Focus(
-      onKeyEvent: _onKey,
-      child: EditableText(
-        controller: _text,
-        focusNode: _focus,
-        autofocus: true,
-        style: base.copyWith(fontSize: 18),
-        cursorColor: c.accent,
-        backgroundCursorColor: c.fg2,
-        selectionColor: c.accent.withValues(alpha: 0.3),
-        maxLines: 1,
-        textInputAction: TextInputAction.go,
-        // Enter is handled in _onKey together with its modifiers.
-        onSubmitted: (_) {},
-      ),
+    final field = EditableText(
+      controller: _text,
+      focusNode: _focus,
+      autofocus: true,
+      readOnly: _confirmClear,
+      style: base.copyWith(fontSize: 18),
+      cursorColor: c.accent,
+      backgroundCursorColor: c.fg2,
+      selectionColor: c.accent.withValues(alpha: 0.3),
+      maxLines: 1,
+      textInputAction: TextInputAction.go,
+      // Enter is handled in _onKey together with its modifiers.
+      onSubmitted: (_) {},
     );
 
     final panel = Container(
@@ -315,25 +529,30 @@ class _CommandPaletteState extends State<CommandPalette> {
               ),
             ),
             Container(height: 0.5, color: c.separator),
-            if (_flat.isNotEmpty || showEmpty)
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 440),
-                child: showEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 28,
-                          horizontal: 12,
-                        ),
-                        child: Text(
-                          s.nothingFound,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: c.fg2),
-                        ),
-                      )
-                    : Semantics(label: s.paletteResults, child: _results(c)),
-              ),
-            if (_flat.isNotEmpty || showEmpty)
-              Container(height: 0.5, color: c.separator),
+            if (_confirmClear)
+              _clearConfirmation(c)
+            else ...[
+              _status(c),
+              if (_flat.isNotEmpty || showEmpty)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 440),
+                  child: showEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 28,
+                            horizontal: 12,
+                          ),
+                          child: Text(
+                            s.nothingFound,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: c.fg2),
+                          ),
+                        )
+                      : Semantics(label: s.paletteResults, child: _results(c)),
+                ),
+              if (_flat.isNotEmpty || showEmpty)
+                Container(height: 0.5, color: c.separator),
+            ],
             SizedBox(
               height: 34,
               child: Padding(
@@ -363,16 +582,19 @@ class _CommandPaletteState extends State<CommandPalette> {
       ),
     );
 
-    return Semantics(
-      scopesRoute: true,
-      namesRoute: true,
-      explicitChildNodes: true,
-      label: s.palette,
-      child: CustomPaint(
-        painter: _OuterShadow(color: _paletteShadow(c)),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: BackdropFilter(filter: paletteGlassFilter, child: panel),
+    return Focus(
+      onKeyEvent: _onKey,
+      child: Semantics(
+        scopesRoute: true,
+        namesRoute: true,
+        explicitChildNodes: true,
+        label: s.palette,
+        child: CustomPaint(
+          painter: _OuterShadow(color: _paletteShadow(c)),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: BackdropFilter(filter: paletteGlassFilter, child: panel),
+          ),
         ),
       ),
     );
@@ -385,13 +607,26 @@ class _CommandPaletteState extends State<CommandPalette> {
       children.add(
         Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 3),
-          child: Text(
-            _groupTitle(group.kind),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: c.fg2,
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _groupTitle(group.kind),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: c.fg2,
+                  ),
+                ),
+              ),
+              if (group.kind == PaletteGroupKind.recentSearches)
+                MgTextButton(
+                  label: widget.strings.clearRecentSearches,
+                  onPressed: (_suggestions?.searchSuggestions.busy ?? true)
+                      ? null
+                      : _askClear,
+                ),
+            ],
           ),
         ),
       );
@@ -404,7 +639,19 @@ class _CommandPaletteState extends State<CommandPalette> {
             selected: i == _selected,
             strings: widget.strings,
             chatAvatar: widget.chatAvatar,
+            removable: group.kind == PaletteGroupKind.recentSearches,
+            onRemove:
+                group.kind == PaletteGroupKind.recentSearches &&
+                    !(_suggestions?.searchSuggestions.busy ?? true)
+                ? () {
+                    if (item case ChatPaletteItem(:final chat)) {
+                      unawaited(_suggestions?.removeRecentSearch(chat.id));
+                      _focus.requestFocus();
+                    }
+                  }
+                : null,
             onHover: () {
+              _selectionTouched = true;
               if (_selected != i) setState(() => _selected = i);
             },
             onTap: () => _activate(i, _targetFromModifiers()),
@@ -492,6 +739,8 @@ class _PaletteRow extends StatelessWidget {
     required this.onHover,
     required this.onTap,
     this.chatAvatar,
+    this.removable = false,
+    this.onRemove,
   });
 
   final Widget Function(ChatSummary chat, double size)? chatAvatar;
@@ -500,6 +749,8 @@ class _PaletteRow extends StatelessWidget {
   final ShellStrings strings;
   final VoidCallback onHover;
   final VoidCallback onTap;
+  final bool removable;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -576,6 +827,14 @@ class _PaletteRow extends StatelessWidget {
                 ),
                 if (kbd != null)
                   Text(kbd, style: TextStyle(fontSize: 12, color: fg2)),
+                if (removable)
+                  MgIconButton(
+                    icon: MgIcons.close,
+                    tooltip: strings.removeRecentSearch(title),
+                    onPressed: onRemove,
+                    size: 28,
+                    iconSize: 13,
+                  ),
               ],
             ),
           ),

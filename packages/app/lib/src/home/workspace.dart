@@ -81,9 +81,41 @@ final workspaceControllerProvider = Provider<WorkspaceController>((ref) {
 /// [ChatDirectory] over TDLib: titles from the chat list store, search
 /// through TDLib's own chat and message search. Notifies when the store
 /// changes, so tab titles follow renames.
-class TelegramChatDirectory extends ChangeNotifier implements ChatDirectory {
-  TelegramChatDirectory(this._store, this._search, {Stream<void>? changes}) {
+class TelegramChatDirectory extends ChangeNotifier
+    implements ChatDirectory, SearchSuggestionsDirectory {
+  TelegramChatDirectory(this._store, this._search, {Stream<void>? changes})
+    : _suggestions = SearchSuggestionsController(_search) {
     _changes = changes?.listen((_) => notifyListeners());
+    _suggestionChanges = _suggestions.changes.listen((_) => notifyListeners());
+  }
+
+  final SearchSuggestionsController _suggestions;
+  StreamSubscription<void>? _suggestionChanges;
+  bool _disposed = false;
+
+  @override
+  SearchSuggestions get searchSuggestions {
+    final s = _suggestions.state;
+    return SearchSuggestions(
+      recent: [for (final id in s.recent) ?chat(id)],
+      top: [for (final id in s.top) ?chat(id)],
+      loading: s.loading,
+      mutating: s.mutating,
+      loadFailed: s.recentFailed || s.topFailed,
+      actionFailed: s.actionFailed,
+    );
+  }
+
+  @override
+  Future<void> loadSearchSuggestions() => _suggestions.load();
+  @override
+  Future<void> removeRecentSearch(ChatId chatId) => _suggestions.remove(chatId);
+  @override
+  Future<void> clearRecentSearches() => _suggestions.clear();
+  @override
+  Future<void> rememberSearchChat(ChatId chatId) async {
+    if (_disposed) return;
+    await _search.rememberChat(chatId);
   }
 
   final ChatListStore _store;
@@ -110,8 +142,8 @@ class TelegramChatDirectory extends ChangeNotifier implements ChatDirectory {
     null => null,
   };
 
-  /// Chats opened here first, then the top of the main list, as in the
-  /// official client's empty search.
+  /// Session-local MRU used by the shell's people prefix, not search history.
+  /// Empty global search uses TDLib's separate recent/top search metadata.
   @override
   List<ChatSummary> recentChats({int limit = 5}) {
     final ids = <int>{
@@ -145,6 +177,9 @@ class TelegramChatDirectory extends ChangeNotifier implements ChatDirectory {
 
   @override
   void dispose() {
+    _disposed = true;
+    _suggestions.dispose();
+    unawaited(_suggestionChanges?.cancel());
     unawaited(_changes?.cancel());
     super.dispose();
   }

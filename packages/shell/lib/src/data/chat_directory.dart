@@ -68,6 +68,37 @@ abstract interface class ChatDirectory {
   Future<List<MessageHit>> searchMessages(String query, {int limit = 8});
 }
 
+/// An account's TDLib-backed empty search. No user-entered queries are stored.
+@immutable
+class SearchSuggestions {
+  const SearchSuggestions({
+    this.recent = const [],
+    this.top = const [],
+    this.loading = false,
+    this.mutating = false,
+    this.loadFailed = false,
+    this.actionFailed = false,
+  });
+
+  final List<ChatSummary> recent;
+  final List<ChatSummary> top;
+  final bool loading;
+  final bool mutating;
+  final bool loadFailed;
+  final bool actionFailed;
+  bool get busy => loading || mutating;
+}
+
+/// Optional capability for an account-owned directory. The palette reads this
+/// live and detaches on directory replacement. Loading must never mutate history.
+abstract interface class SearchSuggestionsDirectory implements Listenable {
+  SearchSuggestions get searchSuggestions;
+  Future<void> loadSearchSuggestions();
+  Future<void> rememberSearchChat(ChatId chatId);
+  Future<void> removeRecentSearch(ChatId chatId);
+  Future<void> clearRecentSearches();
+}
+
 /// An in-memory [ChatDirectory] for tests and development builds.
 class MockChatDirectory implements ChatDirectory {
   MockChatDirectory({List<ChatSummary>? chats, List<MessageHit>? messages})
