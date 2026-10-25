@@ -3,7 +3,7 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { round, shot } from './src/shots.mjs';
 
 const SITE = 'https://mollygram.dev';
-const REPO = 'https://github.com/mollybyte/mollygram';
+const REPO = 'https://github.com/mollykitten/mollygram';
 const here = (p) => new URL(p, import.meta.url);
 
 const css = (await readFile(here('src/site.css'), 'utf8'))

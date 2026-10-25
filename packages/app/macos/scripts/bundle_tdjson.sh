@@ -14,7 +14,7 @@ cache="$repo_root/packages/tdlib/native/macos/$version-$short"
 library="${TDJSON_PATH:-$cache/libtdjson.dylib}"
 
 if [ ! -f "$library" ]; then
-  base="https://github.com/mollybyte/mollygram/releases/download/tdlib-$version-$short"
+  base="https://github.com/mollykitten/mollygram/releases/download/tdlib-$version-$short"
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
   echo "Downloading libtdjson $version ($short)"

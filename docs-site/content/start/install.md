@@ -1,6 +1,6 @@
 # Install
 
-There is no release build yet. Build Mollygram from source on macOS 12 or later. Release builds will be published on [GitHub Releases](https://github.com/mollybyte/mollygram/releases).
+There is no release build yet. Build Mollygram from source on macOS 12 or later. Release builds will be published on [GitHub Releases](https://github.com/mollykitten/mollygram/releases).
 
 ## Before you start
 
@@ -12,7 +12,7 @@ There is no release build yet. Build Mollygram from source on macOS 12 or later.
 1. Clone the repository with its submodules. QuickJS, the plugin engine, lives in a submodule.
 
     ```bash
-    git clone --recurse-submodules https://github.com/mollybyte/mollygram.git
+    git clone --recurse-submodules https://github.com/mollykitten/mollygram.git
     cd mollygram
     ```
 
