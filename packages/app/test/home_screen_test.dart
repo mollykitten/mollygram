@@ -213,33 +213,49 @@ void main() {
     expect(field.controller!.text, 'Half a thought');
   });
 
-  testWidgets('the palette lists recent chats and opens one', (tester) async {
-    final container = await pump(tester);
-    await tester.tap(row('Boris'));
-    await settle(tester);
+  testWidgets(
+    'the palette loads TDLib top and recent searches and records selection',
+    (tester) async {
+      final container = await pump(tester);
+      await tester.tap(row('Boris'));
+      await settle(tester);
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-    await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-    await settle(tester);
-    expect(find.byType(CommandPalette), findsOneWidget);
-    // The chat opened last comes first.
-    final recent = find.descendant(
-      of: find.byType(CommandPalette),
-      matching: find.byType(MonogramAvatar),
-    );
-    expect(tester.widget<MonogramAvatar>(recent.first).name, 'Boris');
-
-    await tester.tap(
-      find.descendant(
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await settle(tester);
+      expect(find.byType(CommandPalette), findsOneWidget);
+      // Ordinary navigation is not search history. Telegram's top peers come
+      // first, followed by the server-owned recent-search list, not the MRU.
+      expect(
+        json.sent.where((r) => r['@type'] == 'addRecentlyFoundChat'),
+        isEmpty,
+      );
+      expect(find.text('Top peers'), findsOneWidget);
+      expect(find.text('Recent searches'), findsOneWidget);
+      final recent = find.descendant(
         of: find.byType(CommandPalette),
-        matching: find.text('Vera'),
-      ),
-    );
-    await settle(tester);
-    expect(find.byType(CommandPalette), findsNothing);
-    expect(container.read(workspaceControllerProvider).value.focusedChat, 3);
-  });
+        matching: find.byType(MonogramAvatar),
+      );
+      expect(tester.widget<MonogramAvatar>(recent.first).name, 'Anna');
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(CommandPalette),
+          matching: find.text('Vera'),
+        ),
+      );
+      await settle(tester);
+      expect(find.byType(CommandPalette), findsNothing);
+      expect(container.read(workspaceControllerProvider).value.focusedChat, 3);
+      expect(
+        json.sent
+            .where((r) => r['@type'] == 'addRecentlyFoundChat')
+            .single['chat_id'],
+        3,
+      );
+    },
+  );
 
   testWidgets('a message found in the palette opens its chat at it', (
     tester,
@@ -599,6 +615,16 @@ final class _FakeTdJson implements td.TdJson {
     final type = decoded['@type'];
     final response = switch (type) {
       'getAuthorizationState' => {'@type': 'authorizationStateReady'},
+      'getTopChats' => {
+        '@type': 'chats',
+        'total_count': 1,
+        'chat_ids': [1],
+      },
+      'searchRecentlyFoundChats' => {
+        '@type': 'chats',
+        'total_count': 1,
+        'chat_ids': [3],
+      },
       'searchMessages' => {
         '@type': 'foundMessages',
         'total_count': 1,

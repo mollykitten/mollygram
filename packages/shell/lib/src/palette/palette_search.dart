@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../data/chat_directory.dart';
@@ -95,7 +97,15 @@ class CommandPaletteItem extends PaletteItem {
   final PaletteCommand command;
 }
 
-enum PaletteGroupKind { recent, chats, people, messages, commands }
+enum PaletteGroupKind {
+  top,
+  recentSearches,
+  recent,
+  chats,
+  people,
+  messages,
+  commands,
+}
 
 @immutable
 class PaletteGroup {
@@ -122,10 +132,22 @@ class PaletteSearch {
     final text = query.text;
     return switch (query.mode) {
       PaletteMode.all when text.isEmpty => _groups([
-        (
-          PaletteGroupKind.recent,
-          [for (final c in directory.recentChats()) ChatPaletteItem(c)],
-        ),
+        if (directory case SearchSuggestionsDirectory(
+          :final searchSuggestions,
+        )) ...[
+          (
+            PaletteGroupKind.top,
+            [for (final c in searchSuggestions.top) ChatPaletteItem(c)],
+          ),
+          (
+            PaletteGroupKind.recentSearches,
+            [for (final c in searchSuggestions.recent) ChatPaletteItem(c)],
+          ),
+        ] else
+          (
+            PaletteGroupKind.recent,
+            [for (final c in directory.recentChats()) ChatPaletteItem(c)],
+          ),
         (
           PaletteGroupKind.commands,
           [
@@ -177,21 +199,20 @@ class PaletteSearch {
         ),
       ]);
     }
-    // Both searches run at once.
-    final chats = directory.searchChats(text);
-    final messages = directory.searchMessages(text);
+    // Attach both error handlers immediately, including when both fail offline.
+    final (chats, messages) = await (
+      directory.searchChats(text),
+      directory.searchMessages(text),
+    ).wait;
     return _groups([
-      (
-        PaletteGroupKind.chats,
-        [for (final c in await chats) ChatPaletteItem(c)],
-      ),
+      (PaletteGroupKind.chats, [for (final c in chats) ChatPaletteItem(c)]),
       (
         PaletteGroupKind.commands,
         [for (final c in matchCommands(text)) CommandPaletteItem(c)],
       ),
       (
         PaletteGroupKind.messages,
-        [for (final m in await messages) MessagePaletteItem(m)],
+        [for (final m in messages) MessagePaletteItem(m)],
       ),
     ]);
   }
