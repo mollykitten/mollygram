@@ -198,7 +198,12 @@ body { -webkit-font-smoothing: antialiased; }
   .md-typeset .mg-card:hover { transform: none; }
 }
 
-/* Footer build line: app version, docs build hash and date. */
-.mg-build { display: block; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+/* Header build line under the repository link: app version, docs build hash and date. */
+.mg-build { display: none; flex-direction: column; justify-content: center; margin-left: 0.8rem; font-size: 0.55rem; line-height: 1.3; white-space: nowrap; opacity: 0.75; font-variant-numeric: tabular-nums; }
 .mg-build a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-.mg-build a:hover { color: var(--md-accent-fg-color); }
+.mg-build a:hover { color: var(--md-accent-fg-color); opacity: 1; }
+.md-header__source { width: auto; max-width: none; }
+.md-header__source .md-source { width: auto; }
+.md-header__source .md-source__repository { max-width: none; }
+@media screen and (min-width: 60em) { .md-header__source { display: flex; align-items: center; } }
+@media screen and (min-width: 76em) { .mg-build { display: flex; } }
