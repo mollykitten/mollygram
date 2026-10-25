@@ -140,21 +140,40 @@ class _CommandPaletteState extends State<CommandPalette> {
 
   void _onSuggestions() {
     if (!mounted || !_emptyQuery) return;
+    final entries = [
+      for (final group in _groups)
+        for (final item in group.items) (group.kind, item),
+    ];
     final previous = _selectionTouched
-        ? _flat.elementAtOrNull(_selected)
+        ? entries.elementAtOrNull(_selected)
         : null;
-    _show(_search.runSync(_query) ?? const []);
-    // Preserve keyboard selection through refreshes and acknowledged removals.
-    if (previous case ChatPaletteItem(:final chat)) {
-      final index = _flat.indexWhere(
-        (item) => item is ChatPaletteItem && item.chat.id == chat.id,
-      );
+    _show(_search.runSync(_query) ?? const [], resetScroll: false);
+    // Group identity distinguishes a recent row from the same top peer.
+    if (previous != null) {
+      final next = [
+        for (final group in _groups)
+          for (final item in group.items) (group.kind, item),
+      ];
+      final index = next.indexWhere((entry) {
+        if (entry.$1 != previous.$1) return false;
+        final oldItem = previous.$2;
+        final newItem = entry.$2;
+        return switch ((oldItem, newItem)) {
+          (ChatPaletteItem(chat: final a), ChatPaletteItem(chat: final b)) =>
+            a.id == b.id,
+          (
+            CommandPaletteItem(command: final a),
+            CommandPaletteItem(command: final b),
+          ) =>
+            a.id == b.id,
+          _ => false,
+        };
+      });
       if (index >= 0) _selected = index;
-    } else if (previous case CommandPaletteItem(:final command)) {
-      final index = _flat.indexWhere(
-        (item) => item is CommandPaletteItem && item.command.id == command.id,
-      );
-      if (index >= 0) _selected = index;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final context = _selectedKey.currentContext;
+        if (mounted && context != null) Scrollable.ensureVisible(context);
+      });
     }
   }
 
@@ -187,7 +206,7 @@ class _CommandPaletteState extends State<CommandPalette> {
     }
   }
 
-  void _show(List<PaletteGroup> groups) {
+  void _show(List<PaletteGroup> groups, {bool resetScroll = true}) {
     void apply() {
       _groups = groups;
       _flat = [for (final g in groups) ...g.items];
@@ -201,7 +220,7 @@ class _CommandPaletteState extends State<CommandPalette> {
     } else {
       setState(apply);
     }
-    if (_scroll.hasClients) _scroll.jumpTo(0);
+    if (resetScroll && _scroll.hasClients) _scroll.jumpTo(0);
   }
 
   void _move(int delta) {

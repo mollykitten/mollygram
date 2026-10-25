@@ -378,6 +378,44 @@ void main() {
     expect(find.text('No recent searches or top peers yet'), findsOneWidget);
   });
 
+  testWidgets('live updates preserve a scrolled duplicate recent selection', (
+    tester,
+  ) async {
+    await tester.pumpWidget(app());
+    await tester.pump();
+    directory._state = SearchSuggestions(
+      top: const [ChatSummary(id: 1, title: 'Top Ada')],
+      recent: [
+        for (var i = 0; i < 19; i++)
+          ChatSummary(id: 10 + i, title: 'Recent $i'),
+        const ChatSummary(id: 1, title: 'Repeat Ada'),
+      ],
+    );
+    directory.notifyListeners();
+    await tester.pump();
+    for (var i = 0; i < 20; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+    }
+    final scroll = tester
+        .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+        .controller!;
+    expect(scroll.offset, greaterThan(0));
+    directory.notifyListeners();
+    await tester.pump();
+    await tester.pump();
+    expect(scroll.offset, greaterThan(0));
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Semantics &&
+            w.properties.selected == true &&
+            w.properties.label == 'Repeat Ada',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('search error offers retry and cannot open stale results', (
     tester,
   ) async {
