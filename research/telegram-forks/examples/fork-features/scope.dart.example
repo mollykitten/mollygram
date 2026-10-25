@@ -1,0 +1,10 @@
+// Собственный исследовательский эскиз, 2026-10-25.
+// Не интегрирован, не компилировался и не тестировался.
+// Это наши модели, а не интерфейсы TDLib или существующие классы Mollygram.
+typedef ConversationKey = ({String account, int chat, int? thread});
+typedef MessageRef = ({ConversationKey conversation, int message});
+typedef ViewAnchor = ({MessageRef ref, double offset});
+
+// account — стабильный локальный идентификатор слота, не индекс текущего UI.
+// thread == null — обычная история. Для topic/comments адаптер должен
+// нормализовать тип и идентификатор ветки; одного числа для всех видов мало.

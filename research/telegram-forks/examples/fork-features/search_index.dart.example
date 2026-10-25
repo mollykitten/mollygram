@@ -1,0 +1,52 @@
+// Собственный эскиз. Не интегрирован и не протестирован.
+import 'scope.dart.example';
+
+enum Extractor { ocr, transcript, document }
+enum IndexStatus { queued, running, ready, failed, unavailable }
+typedef IndexKey = ({MessageRef ref, Extractor extractor});
+typedef IndexedText = ({
+  IndexKey key,
+  String contentRevision,
+  String modelVersion,
+  IndexStatus status,
+  String? text,
+  List<({int startMs, int endMs, String text})> segments,
+});
+
+class ExtractionIndex {
+  final Map<IndexKey, IndexedText> _entries = {};
+  final Map<MessageRef, String> _expectedRevision = {};
+
+  void sourceChanged(MessageRef ref, String revision) {
+    _expectedRevision[ref] = revision;
+    _entries.removeWhere((key, _) => key.ref == ref);
+  }
+
+  bool accept(IndexedText result) {
+    // Старый OCR/ASR task может закончиться уже после edit/delete.
+    if (_expectedRevision[result.key.ref] != result.contentRevision) return false;
+    _entries[result.key] = result;
+    return true;
+  }
+
+  void sourceDeleted(MessageRef ref) {
+    _expectedRevision.remove(ref);
+    _entries.removeWhere((key, _) => key.ref == ref);
+  }
+
+  ({int ready, int tracked}) coverage(String account) {
+    final rows = _entries.values.where(
+        (e) => e.key.ref.conversation.account == account).toList();
+    return (ready: rows.where((e) => e.status == IndexStatus.ready).length,
+            tracked: rows.length);
+  }
+}
+
+// Event: AssetDownloaded -> Queued -> Running -> Ready/Failed/Unavailable.
+// UI считает покрытие по ожидаемым заданиям, а не по числу ready результатов.
+// Для всех доступных объектов требуется отдельный source inventory: tracked
+// здесь НЕ означает «все сообщения Telegram». Нет результатов != нет совпадений.
+// UX: поиск «счёт 154» -> совпадение в фото; «2:13 согласовать» -> seek в voice.
+// ASR может не вернуть timestamps: показывать текст без выдуманного тайминга.
+// Нужны FTS, очередь с backpressure, квоты, языки/качество, clear-cache policy,
+// отдельное согласие на внешний OCR/ASR и удаление производных данных.

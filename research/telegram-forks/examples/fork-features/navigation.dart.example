@@ -1,0 +1,37 @@
+// Собственный эскиз. Не интегрирован и не протестирован.
+import 'scope.dart.example';
+
+class NavigationHistory {
+  final List<ViewAnchor> _entries = [];
+  int _cursor = -1;
+
+  ViewAnchor? get current => _cursor < 0 ? null : _entries[_cursor];
+
+  // Событие JumpSucceeded: вызывать только ПОСЛЕ успешного открытия.
+  // Исходную позицию UI должен записать через visit до первого перехода.
+  void visit(ViewAnchor anchor) {
+    if (current == anchor) return;
+    _entries.removeRange(_cursor + 1, _entries.length);
+    _entries.add(anchor);
+    if (_entries.length > 100) _entries.removeAt(0);
+    _cursor = _entries.length - 1;
+  }
+
+  // Сначала получить target и загрузить его. Лишь после успеха принять курсор.
+  ViewAnchor? target(int direction) {
+    if (direction != -1 && direction != 1) throw ArgumentError('direction');
+    final next = _cursor + direction;
+    return next < 0 || next >= _entries.length ? null : _entries[next];
+  }
+
+  void acceptLoadedTarget(int direction, ViewAnchor loaded) {
+    if (target(direction) != loaded) throw StateError('Stale navigation');
+    _cursor += direction;
+  }
+}
+
+// UX: канал A/пост 80 -> reply 21 -> поиск в B/сообщение 17.
+// Back возвращает 21, затем 80; Forward — обратно.
+// Новая visit после Back удаляет будущую ветку.
+// Нужны request token от гонок загрузки, история на pane и обработка удалённого
+// сообщения/утраченного доступа. Ошибка загрузки не должна сдвигать курсор.

@@ -1,0 +1,44 @@
+// Собственный эскиз. Не интегрирован и не протестирован.
+import 'scope.dart.example';
+
+enum FollowUpKind { snooze, waitingForReply }
+enum FollowUpStatus { pending, due, replyCandidate, done }
+typedef FollowUp = ({
+  String id,
+  MessageRef source,
+  FollowUpKind kind,
+  FollowUpStatus status,
+  DateTime dueUtc,
+  MessageRef? candidate,
+});
+
+FollowUp receiveIncoming(FollowUp item, MessageRef incoming) {
+  if (item.kind != FollowUpKind.waitingForReply ||
+      item.status == FollowUpStatus.done ||
+      incoming.conversation != item.source.conversation ||
+      incoming == item.source) return item;
+  // Candidate не означает, что вопрос решён. Вызвавший код обязан отфильтровать
+  // исходящие, старые/повторные updates, чужую ветку и нерелевантного автора.
+  return (
+    id: item.id, source: item.source, kind: item.kind,
+    status: FollowUpStatus.replyCandidate, dueUtc: item.dueUtc,
+    candidate: incoming,
+  );
+}
+
+FollowUp reconcileClock(FollowUp item, DateTime nowUtc) {
+  if ((item.status != FollowUpStatus.pending &&
+       item.status != FollowUpStatus.replyCandidate) ||
+      nowUtc.isBefore(item.dueUtc)) return item;
+  return (
+    id: item.id, source: item.source, kind: item.kind,
+    status: FollowUpStatus.due, dueUtc: item.dueUtc, candidate: item.candidate,
+  );
+}
+
+// UX snooze: «Вернуть завтра в 10:00» -> очередь «Отложено» -> уведомление.
+// UX waiting: «Жду ответ до пятницы» -> «Есть новое сообщение. Закрыть?».
+// Закрытие — отдельное действие человека, не автоматический incoming event.
+// После сна/restart выполнить reconcileClock и дедуп доставки по id+dueUtc.
+// При завершённом приложении локальный таймер не гарантирует доставку;
+// OS scheduler/сервер — отдельные адаптеры с проверенным контрактом.

@@ -1,0 +1,36 @@
+// Собственный эскиз. Не интегрирован и не протестирован.
+import 'scope.dart.example';
+
+typedef CollectionEntry = ({
+  String id,
+  String collectionId,
+  MessageRef source,
+  String privateNote,
+  Set<String> tags,
+  String? optedInSnapshot,
+});
+
+class Collections {
+  final Map<String, CollectionEntry> _entries = {};
+
+  void save(CollectionEntry entry) {
+    // Это локальная ссылка + заметка: не forward и не server pin.
+    _entries[entry.id] = entry;
+  }
+
+  Iterable<CollectionEntry> forAccount(String account) =>
+      _entries.values.where((e) => e.source.conversation.account == account);
+
+  void unlink(String entryId) => _entries.remove(entryId);
+
+  void removeAccount(String account) => _entries.removeWhere(
+      (_, entry) => entry.source.conversation.account == account);
+}
+
+// События: AddedToCollection, NoteEdited, SourceUnavailable, Unlinked.
+// UX: «В коллекцию -> Ремонт»; заметка «Проверить размер перед заказом».
+// Клик сначала проверяет доступ к source; при удалении показывает tombstone,
+// заметку и (только если выбран заранее) собственный локальный снимок.
+// Контент без права копирования не превращать автоматически в snapshot.
+// Нужны защита локальной БД, поиск заметок, порядок и экспорт; синхронизация
+// не предполагается. Избранное Telegram и его tags остаются отдельной моделью.
