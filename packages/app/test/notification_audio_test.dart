@@ -155,6 +155,70 @@ void main() {
   }
 
   test(
+    'edit during tone preparation keeps the first alert with latest text',
+    () async {
+      json.hold = true;
+      final system = _System();
+      final service = _service(controller, system);
+      await service.start(en);
+      json.pushGroup(42);
+      await json.requested.future;
+      json.pushEdit(text: 'Earlier edit');
+      json.pushEdit(text: 'Latest edit');
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      json.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(system.shown, hasLength(1));
+      expect(system.shown.single.body, 'Latest edit');
+      expect(system.shown.single.sound, isTrue);
+      expect(system.shown.single.soundId, 42);
+      expect(system.shown.single.quiet, isFalse);
+    },
+  );
+
+  test(
+    'edit after native delivery starts remains a quiet replacement',
+    () async {
+      final gate = Completer<void>();
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
+      });
+      final system = _System()..showGate = gate;
+      final service = _service(controller, system);
+      await service.start(en);
+      json.pushGroup(-1);
+      await _until(() => system.shown.length == 1);
+      json.pushEdit(text: 'Edited after send');
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      gate.complete();
+      await _until(() => system.shown.length == 2);
+      expect(system.shown.first.sound, isTrue);
+      expect(system.shown.first.quiet, isFalse);
+      expect(system.shown.last.body, 'Edited after send');
+      expect(system.shown.last.sound, isFalse);
+      expect(system.shown.last.quiet, isTrue);
+    },
+  );
+
+  test(
+    'an edit coalesced into a first alert is still cancelled by sync',
+    () async {
+      json.hold = true;
+      final system = _System();
+      final service = _service(controller, system);
+      await service.start(en);
+      json.pushGroup(42);
+      await json.requested.future;
+      json.pushEdit(text: 'Latest edit');
+      json.push({'@type': 'updateActiveNotifications', 'groups': []});
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      json.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(system.shown, isEmpty);
+    },
+  );
+
+  test(
     'download failure delivers a silent banner without replacing custom ID',
     () async {
       json.fail = true;
@@ -306,6 +370,7 @@ Future<void> _until(bool Function() ready) async {
 
 final class _System implements SystemNotifications {
   final shown = <SystemNotification>[];
+  Completer<void>? showGate;
   @override
   Stream<NotificationResponse> get responses => const Stream.empty();
   @override
@@ -316,8 +381,11 @@ final class _System implements SystemNotifications {
   @override
   Future<bool> requestPermission() async => true;
   @override
-  Future<void> show(SystemNotification notification) async =>
-      shown.add(notification);
+  Future<void> show(SystemNotification notification) async {
+    shown.add(notification);
+    await showGate?.future;
+  }
+
   @override
   Future<void> remove(List<String> ids) async {}
   @override
@@ -403,7 +471,11 @@ final class _Json implements td.TdJson {
 
   void push(Map<String, Object?> update) =>
       _queue.add(jsonEncode({...update, '@client_id': 1}));
-  Map<String, Object?> notification(int id, bool silent) => {
+  Map<String, Object?> notification(
+    int id,
+    bool silent, {
+    String text = 'hello',
+  }) => {
     '@type': 'notification',
     'id': id,
     'date': 1,
@@ -420,7 +492,7 @@ final class _Json implements td.TdJson {
           '@type': 'messageText',
           'text': {
             '@type': 'formattedText',
-            'text': 'hello',
+            'text': text,
             'entities': <Map<String, Object?>>[],
           },
         },
@@ -439,9 +511,9 @@ final class _Json implements td.TdJson {
         'added_notifications': [notification(notificationId, silent)],
         'removed_notification_ids': [],
       });
-  void pushEdit() => push({
+  void pushEdit({String text = 'edited'}) => push({
     '@type': 'updateNotification',
     'notification_group_id': 1,
-    'notification': notification(1, false),
+    'notification': notification(1, false, text: text),
   });
 }

@@ -31,6 +31,7 @@ final class NotificationService {
   final NotificationAudioSession? _audio;
   var _deliveryQueue = Future<void>.value();
   final _notificationVersions = <String, Object>{};
+  final _pendingDeliveries = <String, _PendingNotification>{};
   final SystemNotifications _system;
   final void Function(int chatId) _openChat;
   final _subscriptions = <StreamSubscription<Object?>>[];
@@ -71,7 +72,10 @@ final class NotificationService {
     _settings = next;
     if (_l10n == null) return;
     if (next.enabled != previous.enabled) {
-      if (!next.enabled) _notificationVersions.clear();
+      if (!next.enabled) {
+        _notificationVersions.clear();
+        _pendingDeliveries.clear();
+      }
       unawaited(_applyEnabled());
     }
     unawaited(_updateBadge());
@@ -107,21 +111,32 @@ final class NotificationService {
   }
 
   void _onEvent(NotificationEvent event) {
-    Object? version;
+    _PendingNotification? pending;
     // Invalidate in-flight sound preparation immediately, not only when its
     // queued removal eventually runs. Read/deleted notifications must not make
     // a late banner or sound after a tone download finishes.
     switch (event) {
       case NotificationPosted(:final notification):
         if (_disposed || !_settings.enabled) return;
-        version = Object();
-        _notificationVersions[notification.key] = version;
+        final existing = _pendingDeliveries[notification.key];
+        if (notification.isEdit && existing != null) {
+          // Update the content, not the first alert's sound/quiet policy.
+          // Once native delivery starts this entry is removed, so later edits
+          // follow the ordinary quiet replacement path instead.
+          existing.latest = notification;
+          return;
+        }
+        pending = _PendingNotification(notification);
+        _pendingDeliveries[notification.key] = pending;
+        _notificationVersions[notification.key] = pending.version;
       case NotificationsRemoved(:final keys):
         for (final key in keys) {
           _notificationVersions.remove(key);
+          _pendingDeliveries.remove(key);
         }
       case NotificationsSynced(:final keys):
         _notificationVersions.removeWhere((key, _) => !keys.contains(key));
+        _pendingDeliveries.removeWhere((key, _) => !keys.contains(key));
     }
     // File preparation must not let a removal overtake its notification.
     _deliveryQueue = _deliveryQueue
@@ -129,10 +144,11 @@ final class NotificationService {
           if (_disposed) return;
           switch (event) {
             case NotificationPosted(:final notification):
+              final delivery = pending!;
               if (!_settings.enabled ||
                   !identical(
                     _notificationVersions[notification.key],
-                    version,
+                    delivery.version,
                   )) {
                 return;
               }
@@ -154,12 +170,18 @@ final class NotificationService {
                     !_settings.enabled ||
                     !identical(
                       _notificationVersions[notification.key],
-                      version,
+                      delivery.version,
                     )) {
                   return;
                 }
+                _pendingDeliveries.remove(notification.key);
                 await _system.show(
-                  present(notification, _l10n ?? l10n, soundResource: resource),
+                  present(
+                    delivery.latest,
+                    _l10n ?? l10n,
+                    soundResource: resource,
+                    alertNotification: delivery.initial,
+                  ),
                 );
               }
             case NotificationsRemoved(:final keys):
@@ -188,7 +210,11 @@ final class NotificationService {
     MessageNotification notification,
     AppLocalizations l10n, {
     NotificationSoundResource soundResource = const NotificationSoundResource(),
+    MessageNotification? alertNotification,
   }) {
+    // Edits coalesced during preparation supply the latest content while the
+    // initial new-message notification retains its original alert semantics.
+    final alert = alertNotification ?? notification;
     final preview = _settings.showPreview && notification.showPreview;
     return SystemNotification(
       id: notification.key,
@@ -202,16 +228,16 @@ final class NotificationService {
       thread: 'chat:${notification.chatId}',
       sound:
           _settings.sound &&
-          notification.playSound &&
-          !notification.isEdit &&
-          (notification.soundId < 0 ||
+          alert.playSound &&
+          !alert.isEdit &&
+          (alert.soundId < 0 ||
               soundResource.path != null ||
               soundResource.fallbackDefault),
-      soundId: notification.soundId,
+      soundId: alert.soundId,
       soundPath: soundResource.path,
       soundFallbackDefault: soundResource.fallbackDefault,
       soundSession: _audio?.id ?? '',
-      quiet: notification.isEdit,
+      quiet: alert.isEdit,
       canReply: notification.canReply,
       photoPath: notification.photoPath,
       monogram: monogramOf(notification.chatTitle),
@@ -223,6 +249,7 @@ final class NotificationService {
     if (_disposed) return;
     _disposed = true;
     _notificationVersions.clear();
+    _pendingDeliveries.clear();
     // Enqueue cleanup synchronously, before a replacement account can start.
     final cleanup = _l10n == null
         ? Future<void>.value()
@@ -240,6 +267,14 @@ final class NotificationService {
   /// worth an error dialog; the chat itself shows what happened.
   static Future<void> _guard(Future<Object?> operation) =>
       operation.then<void>((_) {}, onError: (Object _) {});
+}
+
+final class _PendingNotification {
+  _PendingNotification(this.initial) : latest = initial;
+
+  final Object version = Object();
+  final MessageNotification initial;
+  MessageNotification latest;
 }
 
 /// The message line: the text, or what kind of message it is, with the
