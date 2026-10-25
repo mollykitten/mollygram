@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:mollygram_tdlib/mollygram_tdlib.dart' as td;
 
 import 'chat_list_store.dart';
+import 'file_controller.dart';
 import 'message_content.dart';
+import 'notification_sounds.dart';
 
 /// One message notification, ready to be shown by the system.
 final class MessageNotification {
@@ -20,6 +22,7 @@ final class MessageNotification {
     this.isMention = false,
     this.showPreview = true,
     this.playSound = true,
+    this.soundId = -1,
     this.canReply = true,
     this.photoPath,
     this.isEdit = false,
@@ -55,6 +58,10 @@ final class MessageNotification {
   /// False for silent messages and chats whose sound is off, including
   /// mentions in muted chats.
   final bool playSound;
+
+  /// The resolved TDLib tone: -1 system default, 0 silence, positive saved ID.
+  /// Kept even when [playSound] suppresses this particular message.
+  final int soundId;
 
   /// False in channels, where only admins post.
   final bool canReply;
@@ -147,11 +154,14 @@ final class NotificationController {
   NotificationController(
     this._client, {
     Duration? photoTimeout,
+    FileController? files,
     Future<void> Function(Future<void> Function() send)? deliberately,
-  }) : _photoTimeout = photoTimeout ?? const Duration(seconds: 2),
+  }) : sounds = NotificationSounds(_client, files ?? FileController(_client)),
+       _photoTimeout = photoTimeout ?? const Duration(seconds: 2),
        _deliberately = deliberately ?? ((send) => send());
 
   final td.TdClient _client;
+  final NotificationSounds sounds;
 
   /// Sends what the user asked for on purpose past the privacy extras
   /// (see [PrivacyGuard.deliberately]).
@@ -206,6 +216,7 @@ final class NotificationController {
     bool? enabled,
     bool? showPreview,
     bool? sound,
+    int? soundId,
   }) {
     final result = _scopeQueue.then((_) async {
       final current = await scopeSettings(scope);
@@ -216,9 +227,13 @@ final class NotificationController {
             muteFor: enabled == null
                 ? current.muteFor
                 : (enabled ? 0 : 0x7FFFFFFF),
-            soundId: sound == null
-                ? current.soundId
-                : (sound ? (current.soundId == 0 ? -1 : current.soundId) : 0),
+            soundId:
+                soundId ??
+                (sound == null
+                    ? current.soundId
+                    : (sound
+                          ? (current.soundId == 0 ? -1 : current.soundId)
+                          : 0)),
             showPreview: showPreview ?? current.showPreview,
             useDefaultMuteStories: current.useDefaultMuteStories,
             muteStories: current.muteStories,
@@ -465,6 +480,7 @@ final class NotificationController {
         message: message,
         isMention: isMention,
         playSound: update.notificationSoundId != 0 && !notification.isSilent,
+        soundId: update.notificationSoundId,
       );
       // Read or deleted while the photo was loading.
       if (!(_groups[groupId]?.containsKey(notification.id) ?? false)) continue;
@@ -496,6 +512,7 @@ final class NotificationController {
     required td.Message message,
     required bool isMention,
     required bool playSound,
+    int soundId = 0,
     bool isEdit = false,
   }) async {
     final chat = _chats[message.chatId];
@@ -514,6 +531,7 @@ final class NotificationController {
       isMention: isMention,
       showPreview: type.showPreview && !(chat?.isSecret ?? false),
       playSound: playSound,
+      soundId: soundId,
       canReply: !(chat?.isChannel ?? false),
       photoPath: await _photoPath(chat?.photo),
       isEdit: isEdit,

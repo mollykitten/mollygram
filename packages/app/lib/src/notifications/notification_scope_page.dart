@@ -9,6 +9,9 @@ import 'package:mollygram_ui_kit/mollygram_ui_kit.dart';
 import '../../l10n/app_localizations.dart';
 import '../session/providers.dart';
 import '../settings/settings_style.dart';
+import '../settings/settings_window.dart';
+import 'notification_audio.dart';
+import 'notification_sounds_page.dart';
 
 /// The account's server-backed notification defaults, not the local banner
 /// and Dock switches kept in notifications.json.
@@ -49,16 +52,16 @@ class NotificationScopePage extends ConsumerStatefulWidget {
 }
 
 class _NotificationScopePageState extends ConsumerState<NotificationScopePage> {
-  ({bool? enabled, bool? showPreview, bool? sound})? _pending;
+  ({bool? enabled, bool? showPreview})? _pending;
   String? _error;
 
-  Future<void> _save({bool? enabled, bool? showPreview, bool? sound}) async {
+  Future<void> _save({bool? enabled, bool? showPreview}) async {
     if (_pending != null) return;
     final l10n = AppLocalizations.of(context);
     final controller = ref.read(notificationControllerProvider);
     final provider = scopeNotificationSettingsProvider(widget.scope);
     setState(() {
-      _pending = (enabled: enabled, showPreview: showPreview, sound: sound);
+      _pending = (enabled: enabled, showPreview: showPreview);
       _error = null;
     });
     var saved = false;
@@ -67,25 +70,41 @@ class _NotificationScopePageState extends ConsumerState<NotificationScopePage> {
         widget.scope,
         enabled: enabled,
         showPreview: showPreview,
-        sound: sound,
       );
       saved = true;
-      if (!mounted) return;
+      if (!mounted ||
+          !identical(ref.read(notificationControllerProvider), controller)) {
+        return;
+      }
       // Also reload after acknowledgement if TDLib emitted no scope update.
       ref.invalidate(provider);
       await ref.read(provider.future);
     } on Object {
       // A failed readback has its own load-error row and retry action; the
       // acknowledged write must not be reported as an unsuccessful save.
-      if (mounted && !saved) setState(() => _error = l10n.saveFailed);
+      if (mounted &&
+          !saved &&
+          identical(ref.read(notificationControllerProvider), controller)) {
+        setState(() => _error = l10n.saveFailed);
+      }
     } finally {
-      if (mounted) setState(() => _pending = null);
+      if (mounted &&
+          identical(ref.read(notificationControllerProvider), controller)) {
+        setState(() => _pending = null);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    ref.listen(notificationControllerProvider, (_, _) {
+      setState(() {
+        _pending = null;
+        _error = null;
+      });
+    });
+    final tones = ref.watch(savedNotificationSoundsProvider).value ?? [];
     final loaded = ref.watch(scopeNotificationSettingsProvider(widget.scope));
     final settings = loaded.value;
     if (loaded.hasError || settings == null) {
@@ -132,12 +151,34 @@ class _NotificationScopePageState extends ConsumerState<NotificationScopePage> {
                   ? null
                   : (v) => unawaited(_save(showPreview: v)),
             ),
-            SettingsSwitchRow(
-              title: l10n.notificationsSound,
-              value: pending?.sound ?? settings.soundId != 0,
-              onChanged: busy || !enabled
+            SettingsRow(
+              title: l10n.notificationSoundTitle,
+              trailing: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: Text(
+                  notificationSoundTitle(
+                    l10n,
+                    settings.soundId,
+                    tones
+                        .where((t) => t.id == settings.soundId)
+                        .firstOrNull
+                        ?.title,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: mgTextStyle(
+                    MgColors.of(context),
+                    color: MgColors.of(context).fg2,
+                  ),
+                ),
+              ),
+              chevron: true,
+              onTap: busy || !enabled
                   ? null
-                  : (v) => unawaited(_save(sound: v)),
+                  : () => SettingsNavigation.of(context).push(
+                      l10n.notificationSoundTitle,
+                      (_) => NotificationSoundsPage(scope: widget.scope),
+                    ),
             ),
           ],
         ),

@@ -22,6 +22,7 @@ export 'src/link_resolver.dart';
 export 'src/mention_search.dart';
 export 'src/message_thread.dart';
 export 'src/notification_controller.dart';
+export 'src/notification_sounds.dart';
 export 'src/outgoing_file.dart';
 export 'src/peer_info.dart';
 export 'src/phone_country.dart';

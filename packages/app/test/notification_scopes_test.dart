@@ -3,11 +3,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mollygram/l10n/app_localizations.dart';
+import 'package:mollygram/src/notifications/notification_audio.dart';
 import 'package:mollygram/src/notifications/notification_scope_page.dart';
 import 'package:mollygram/src/notifications/notification_settings.dart';
+import 'package:mollygram/src/notifications/notification_sounds_page.dart';
 import 'package:mollygram/src/notifications/notifications_page.dart';
 import 'package:mollygram/src/notifications/system_notifications.dart';
 import 'package:mollygram/src/settings/settings_style.dart';
@@ -21,15 +24,25 @@ void main() {
   late _ScopeJson json;
   late td.Td tdlib;
   late NotificationController controller;
+  final audioCalls = <MethodCall>[];
+  const audioChannel = MethodChannel('mollygram/notifications');
 
   setUp(() async {
     json = _ScopeJson();
     tdlib = td.Td.custom(json, td.InlineTdEventSource(json));
     controller = NotificationController(tdlib.createClient());
     await controller.start();
+    audioCalls.clear();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(audioChannel, (call) async {
+          audioCalls.add(call);
+          return null;
+        });
   });
 
   tearDown(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(audioChannel, null);
     await tdlib.close();
   });
 
@@ -42,10 +55,13 @@ void main() {
     ),
     void Function(String, WidgetBuilder)? onPush,
   }) async {
+    final pageJson = json;
+    final pageController = controller;
     addTearDown(() async {
-      if (json._held != null) json.completeWrite();
+      if (pageJson._held != null) pageJson.completeWrite();
+      if (pageJson._heldTones != null) pageJson.completeTones();
       await tester.pumpWidget(const SizedBox.shrink());
-      final disposed = controller.dispose();
+      final disposed = pageController.dispose();
       // Queued writes were created in the widget test's fake async zone.
       // Let their completion listeners run before awaiting disposal outside it.
       await settle(tester);
@@ -55,6 +71,14 @@ void main() {
       ProviderScope(
         overrides: [
           notificationControllerProvider.overrideWithValue(controller),
+          notificationAudioProvider.overrideWith((ref) {
+            final audio = NotificationAudioSession(
+              ref.watch(notificationControllerProvider).sounds,
+              supported: true,
+            );
+            ref.onDispose(() => audio.dispose());
+            return audio;
+          }),
           notificationSettingsStorageProvider.overrideWithValue(
             MemoryNotificationSettingsStorage(),
           ),
@@ -87,13 +111,182 @@ void main() {
       .widget<SettingsSwitchRow>(find.widgetWithText(SettingsSwitchRow, label))
       .value;
 
+  testWidgets(
+    'tone selector shows actual selected saved sound and saves exact IDs',
+    (tester) async {
+      await page(
+        tester,
+        content: const NotificationSoundsPage(scope: NotificationScope.groups),
+      );
+      expect(find.text('Test tone'), findsOneWidget);
+      for (final (label, id) in [
+        (en.notificationSoundDefault, '-1'),
+        (en.notificationSoundNone, '0'),
+        ('Test tone', '42'),
+      ]) {
+        await tester.tap(find.text(label));
+        await settle(tester);
+        expect(json.settings['sound_id'], id);
+        expect(json.writes.last['disable_mention_notifications'], isTrue);
+      }
+    },
+  );
+
+  Finder tone(int id) => find.byKey(ValueKey(('notificationTone', id)));
+  Future<void> tonesPage(WidgetTester tester, {bool dark = false}) => page(
+    tester,
+    dark: dark,
+    content: const NotificationSoundsPage(scope: NotificationScope.groups),
+  );
+
+  testWidgets('tone save failure keeps selection and retry reads it back', (
+    tester,
+  ) async {
+    await tonesPage(tester);
+    json.failWrite = true;
+    await tester.tap(find.text(en.notificationSoundNone));
+    await settle(tester);
+    expect(find.text(en.saveFailed), findsOneWidget);
+    expect(json.settings['sound_id'], '42');
+    json.failWrite = false;
+    await tester.tap(find.text(en.notificationSoundNone));
+    await settle(tester);
+    expect(find.text(en.saveFailed), findsNothing);
+    expect(json.settings['sound_id'], '0');
+    expect(
+      find.descendant(of: tone(0), matching: find.byType(MgIcon)),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('tone readback failure disables choices until retry', (
+    tester,
+  ) async {
+    await tonesPage(tester);
+    json.failReadAfterWrite = true;
+    await tester.tap(find.text(en.notificationSoundNone));
+    await settle(tester);
+    expect(find.text(en.saveFailed), findsNothing);
+    expect(find.text(en.notificationsLoadFailed), findsOneWidget);
+    expect(tester.widget<SettingsRow>(tone(-1)).onTap, isNull);
+    json.failRead = false;
+    await tester.tap(find.text(en.tryAgain));
+    await settle(tester);
+    expect(tester.widget<SettingsRow>(tone(-1)).onTap, isNotNull);
+    expect(json.settings['sound_id'], '0');
+  });
+
+  testWidgets('tone loading and saved-list errors offer an honest retry', (
+    tester,
+  ) async {
+    json.holdTones = true;
+    await tonesPage(tester);
+    expect(find.byType(SettingsSpinner), findsWidgets);
+    expect(find.text('Test tone'), findsNothing);
+    json.failTones = true;
+    json.completeTones();
+    await settle(tester);
+    expect(find.text(en.notificationsLoadFailed), findsOneWidget);
+    json.failTones = false;
+    await tester.tap(find.text(en.tryAgain));
+    await settle(tester);
+    expect(find.text('Test tone'), findsOneWidget);
+  });
+
+  testWidgets(
+    'tone pending disables choices, preview never saves, failed custom stays selected',
+    (tester) async {
+      await tonesPage(tester);
+      await tester.tap(
+        find.descendant(
+          of: tone(-1),
+          matching: find.text(en.notificationSoundPreview),
+        ),
+      );
+      await settle(tester);
+      expect(audioCalls.last.method, 'previewSound');
+      expect((audioCalls.last.arguments as Map)['soundId'], '-1');
+      expect(json.writes, isEmpty);
+      await tester.tap(
+        find.descendant(
+          of: tone(42),
+          matching: find.text(en.notificationSoundPreview),
+        ),
+      );
+      await settle(tester);
+      expect(find.text(en.notificationSoundUnavailable), findsOneWidget);
+      expect(json.settings['sound_id'], '42');
+      expect(json.writes, isEmpty);
+      json.holdWrites = true;
+      await tester.tap(find.text(en.notificationSoundNone));
+      await settle(tester);
+      expect(tester.widget<SettingsRow>(tone(42)).onTap, isNull);
+      expect(find.byType(SettingsSpinner), findsOneWidget);
+      json.completeWrite();
+      await settle(tester);
+    },
+  );
+
+  testWidgets('keyboard can select a tone with an explicit focus indicator', (
+    tester,
+  ) async {
+    await tonesPage(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    expect(FocusManager.instance.primaryFocus, isNotNull);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(json.settings['sound_id'], '-1');
+  });
+
+  testWidgets(
+    'account replacement clears pending UI and ignores stale failure',
+    (tester) async {
+      await tonesPage(tester);
+      final oldJson = json..holdWrites = true;
+      final oldTd = tdlib;
+      await tester.tap(find.text(en.notificationSoundNone));
+      await settle(tester);
+      json = _ScopeJson()..settings['sound_id'] = '-1';
+      await tester.runAsync(() async {
+        tdlib = td.Td.custom(json, td.InlineTdEventSource(json));
+        controller = NotificationController(tdlib.createClient());
+        await controller.start();
+      });
+      await tonesPage(tester);
+      oldJson.failWrite = true;
+      oldJson.completeWrite();
+      await settle(tester);
+      expect(find.text(en.saveFailed), findsNothing);
+      expect(tester.widget<SettingsRow>(tone(0)).onTap, isNotNull);
+      expect(json.writes, isEmpty);
+      expect(audioCalls.any((c) => c.method == 'releaseSoundSession'), isTrue);
+      addTearDown(oldTd.close);
+    },
+  );
+
+  testWidgets('saved-list updates reload titles without writing settings', (
+    tester,
+  ) async {
+    await tonesPage(tester);
+    json.toneTitle = 'Updated tone';
+    json.push({
+      '@type': 'updateSavedNotificationSounds',
+      'notification_sound_ids': ['42'],
+    });
+    await settle(tester);
+    expect(find.text('Updated tone'), findsOneWidget);
+    expect(find.text('Test tone'), findsNothing);
+    expect(json.writes, isEmpty);
+  });
+
   testWidgets('loads the group defaults from Telegram', (tester) async {
     json.settings['mute_for'] = 3600;
     json.settings['show_preview'] = false;
     await page(tester);
     expect(toggled(tester, en.notificationsShow), isFalse);
     expect(toggled(tester, en.notificationsPreview), isFalse);
-    expect(toggled(tester, en.notificationsSound), isTrue);
+    expect(find.text('Test tone'), findsOneWidget);
     expect(json.scopes.toSet(), {'notificationSettingsScopeGroupChats'});
     expect(json.writes, isEmpty);
   });
@@ -154,15 +347,15 @@ void main() {
   testWidgets('failed save rolls back and can be retried', (tester) async {
     await page(tester);
     json.failWrite = true;
-    await tester.tap(find.text(en.notificationsSound));
+    await tester.tap(find.text(en.notificationsPreview));
     await settle(tester);
     expect(find.text(en.saveFailed), findsOneWidget);
-    expect(toggled(tester, en.notificationsSound), isTrue);
+    expect(toggled(tester, en.notificationsPreview), isTrue);
     json.failWrite = false;
-    await tester.tap(find.text(en.notificationsSound));
+    await tester.tap(find.text(en.notificationsPreview));
     await settle(tester);
     expect(find.text(en.saveFailed), findsNothing);
-    expect(toggled(tester, en.notificationsSound), isFalse);
+    expect(toggled(tester, en.notificationsPreview), isFalse);
   });
 
   testWidgets('successful save with failed readback offers a load retry', (
@@ -193,7 +386,7 @@ void main() {
     json.failRead = false;
     await tester.tap(find.text(en.tryAgain));
     await settle(tester);
-    expect(find.byType(SettingsSwitchRow), findsNWidgets(3));
+    expect(find.byType(SettingsSwitchRow), findsNWidgets(2));
   });
 
   testWidgets('follows settings changed on another device', (tester) async {
@@ -217,6 +410,48 @@ void main() {
   });
 
   for (final dark in [false, true]) {
+    for (final state in [
+      'ready',
+      'loading',
+      'error',
+      'pending',
+      'focus',
+      'preview_error',
+    ]) {
+      testWidgets('tone selector $state ${dark ? 'dark' : 'light'}', (
+        tester,
+      ) async {
+        await tester.binding.setSurfaceSize(const Size(600, 480));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        json.holdTones = state == 'loading';
+        json.failTones = state == 'error';
+        await tonesPage(tester, dark: dark);
+        if (state == 'pending') {
+          json.holdWrites = true;
+          await tester.tap(find.text(en.notificationSoundNone));
+          await settle(tester);
+        }
+        if (state == 'focus') {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await settle(tester);
+        }
+        if (state == 'preview_error') {
+          await tester.tap(
+            find.descendant(
+              of: tone(42),
+              matching: find.text(en.notificationSoundPreview),
+            ),
+          );
+          await settle(tester);
+        }
+        await expectLater(
+          find.byKey(const ValueKey('scope-page')),
+          matchesGoldenFile(
+            'goldens/notification_tones_${state}_${dark ? 'dark' : 'light'}${Platform.isMacOS ? '_macos' : ''}.png',
+          ),
+        );
+      });
+    }
     testWidgets('scope settings ${dark ? 'dark' : 'light'}', (tester) async {
       await tester.binding.setSurfaceSize(const Size(600, 360));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -260,6 +495,10 @@ final class _ScopeJson implements td.TdJson {
   var failWrite = false;
   var failReadAfterWrite = false;
   var holdWrites = false;
+  var holdTones = false;
+  var failTones = false;
+  var toneTitle = 'Test tone';
+  Map<String, Object?>? _heldTones;
   Map<String, Object?>? _held;
 
   @override
@@ -274,6 +513,34 @@ final class _ScopeJson implements td.TdJson {
   void send(int clientId, String request) {
     final r = jsonDecode(request) as Map<String, Object?>;
     switch (r['@type']) {
+      case 'getSavedNotificationSounds':
+        if (holdTones) {
+          _heldTones = r;
+          return;
+        }
+        if (failTones) {
+          _reply(r, {'@type': 'error', 'code': 500, 'message': 'offline'});
+          return;
+        }
+        _reply(r, {
+          '@type': 'notificationSounds',
+          'notification_sounds': [
+            {
+              '@type': 'notificationSound',
+              'id': '42',
+              'duration': 1,
+              'date': 0,
+              'title': toneTitle,
+              'data': '',
+              'sound': {
+                '@type': 'file',
+                'id': 7,
+                'local': {'@type': 'localFile', 'path': ''},
+                'remote': {'@type': 'remoteFile', 'id': '', 'unique_id': ''},
+              },
+            },
+          ],
+        });
       case 'getScopeNotificationSettings':
         scopes.add((r['scope'] as Map)['@type'] as String);
         _reply(
@@ -317,6 +584,13 @@ final class _ScopeJson implements td.TdJson {
     final held = _held!;
     _held = null;
     _save(held);
+  }
+
+  void completeTones() {
+    holdTones = false;
+    final held = _heldTones!;
+    _heldTones = null;
+    send(1, jsonEncode(held));
   }
 
   void _reply(Map<String, Object?> r, Map<String, Object?> value) => _queue.add(
