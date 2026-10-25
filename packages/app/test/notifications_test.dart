@@ -25,6 +25,7 @@ void main() {
     bool showPreview = true,
     bool playSound = true,
     bool isEdit = false,
+    int soundId = -1,
   }) => MessageNotification(
     groupId: 1,
     id: 2,
@@ -38,6 +39,7 @@ void main() {
     showPreview: showPreview,
     playSound: playSound,
     isEdit: isEdit,
+    soundId: soundId,
   );
 
   group('NotificationService', () {
@@ -84,6 +86,32 @@ void main() {
       expect(shown.sound, isTrue);
       expect(shown.monogram, 'CC');
     });
+
+    test(
+      'preserves tone IDs and resource through presentation and mute gates',
+      () {
+        const resource = NotificationSoundResource(path: '/tone.mp3');
+        final shown = service.present(
+          message(soundId: 42),
+          en,
+          soundResource: resource,
+        );
+        expect(shown.soundId, 42);
+        expect(shown.soundPath, '/tone.mp3');
+        expect(shown.soundFallbackDefault, isFalse);
+        service.settings = const NotificationSettings(sound: false);
+        expect(service.present(message(soundId: 42), en).sound, isFalse);
+        expect(service.present(message(soundId: 42), en).soundId, 42);
+        expect(
+          service.present(message(soundId: 42, playSound: false), en).sound,
+          isFalse,
+        );
+        expect(
+          service.present(message(soundId: 42, isEdit: true), en).sound,
+          isFalse,
+        );
+      },
+    );
 
     test('hides the text when previews are off', () {
       service.settings = const NotificationSettings(showPreview: false);

@@ -382,6 +382,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationsSound => 'Play sound';
 
   @override
+  String get notificationSoundTitle => 'Notification sound';
+
+  @override
+  String get notificationSoundDefault => 'System default';
+
+  @override
+  String get notificationSoundNone => 'None';
+
+  @override
+  String get notificationSoundSaved => 'Saved Telegram sounds';
+
+  @override
+  String get notificationSoundPreview => 'Preview';
+
+  @override
+  String get notificationSoundUnavailable =>
+      'This sound couldn\'t be played. Try previewing it again.';
+
+  @override
+  String get notificationSoundHint =>
+      'Sounds saved in Telegram sync across your devices. Unavailable files play silently; removed sounds use the system default. Your selection is kept.';
+
+  @override
+  String get notificationSoundUnsupported =>
+      'Sound choices sync with Telegram, but native notification delivery and preview are only available on macOS. Windows and Linux do not play notifications yet.';
+
+  @override
+  String get notificationSoundEmpty =>
+      'No saved sounds. Add a tone in another Telegram client to use it here.';
+
+  @override
+  String notificationSoundCustom(String id) {
+    return 'Saved sound · $id';
+  }
+
+  @override
   String get notificationsSectionChats => 'Message notifications';
 
   @override

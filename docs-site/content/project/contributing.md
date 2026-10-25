@@ -1,6 +1,6 @@
 # Contributing
 
-The full rules are in [`CONTRIBUTING.md`](https://github.com/mollybyte/mollygram/blob/main/CONTRIBUTING.md). Read it before your first pull request. This page is the short version.
+The full rules are in [`CONTRIBUTING.md`](https://github.com/mollykitten/mollygram/blob/main/CONTRIBUTING.md). Read it before your first pull request. This page is the short version.
 
 ## Set up
 
@@ -34,7 +34,7 @@ Pure Dart packages use `dart test`. After a change to the TDLib schema, run `dar
 
 ## Security
 
-Do not open a public issue for a vulnerability. Report it through [GitHub security advisories](https://github.com/mollybyte/mollygram/security/advisories/new), with the impact, steps to reproduce, the version or commit and the platform. The maintainers answer within 7 days. See [`SECURITY.md`](https://github.com/mollybyte/mollygram/blob/main/SECURITY.md).
+Do not open a public issue for a vulnerability. Report it through [GitHub security advisories](https://github.com/mollykitten/mollygram/security/advisories/new), with the impact, steps to reproduce, the version or commit and the platform. The maintainers answer within 7 days. See [`SECURITY.md`](https://github.com/mollykitten/mollygram/blob/main/SECURITY.md).
 
 In scope: the app, the plugin sandbox and permission model, and the storage of sessions and keys. Out of scope: Telegram's servers, MTProto and TDLib. Report those to Telegram or the TDLib project.
 
@@ -42,7 +42,7 @@ Only the latest release and `main` receive fixes.
 
 ## License
 
-GPL-3.0. Contributions come under the same license. The repository also has a [code of conduct](https://github.com/mollybyte/mollygram/blob/main/CODE_OF_CONDUCT.md).
+GPL-3.0. Contributions come under the same license. The repository also has a [code of conduct](https://github.com/mollykitten/mollygram/blob/main/CODE_OF_CONDUCT.md).
 
 ## Plugins
 

@@ -1,21 +1,21 @@
-<!-- The PR title must follow Conventional Commits, e.g. "feat(app): add chat tabs". See CONTRIBUTING.md. -->
+<!-- the pr title must follow conventional commits, e.g. "feat(app): add chat tabs". see CONTRIBUTING.md. -->
 
-## Summary
+## summary
 
-<!-- What does this change do and why? Link related issues: "Closes #123". -->
+<!-- what does this change do and why? link related issues: "Closes #123". -->
 
-## Changes
+## changes
 
 -
 
-## Screenshots
+## screenshots
 
-<!-- For UI changes: light and dark theme. Delete this section otherwise. -->
+<!-- ui changes: light and dark theme. delete this section otherwise. -->
 
-## Checklist
+## checklist
 
-- [ ] The PR title follows [Conventional Commits](https://www.conventionalcommits.org)
+- [ ] the pr title follows [Conventional Commits](https://www.conventionalcommits.org)
 - [ ] `dart format`, `flutter analyze` and tests pass locally
-- [ ] Tests added or updated where it makes sense
-- [ ] New UI strings exist in English and Russian
-- [ ] Docs updated (README, `docs/`) if behavior changed
+- [ ] tests added or updated where it makes sense
+- [ ] new ui strings exist in english and russian
+- [ ] docs updated (readme, `docs/`) if behavior changed

@@ -20,6 +20,7 @@ final class NotificationsChannel: NSObject, UNUserNotificationCenterDelegate {
   private weak var window: NSWindow?
   private let center = UNUserNotificationCenter.current()
   private var dartReady = false
+  private let tones = NotificationToneStore()
   private var pending: [(method: String, arguments: [String: Any])] = []
 
   init(messenger: FlutterBinaryMessenger, window: NSWindow) {
@@ -58,6 +59,19 @@ final class NotificationsChannel: NSObject, UNUserNotificationCenterDelegate {
       }
     case "show":
       show(args)
+      result(nil)
+    case "previewSound":
+      do {
+        try tones.preview(args)
+        result(nil)
+      } catch {
+        result(FlutterError(code: "tone_unavailable", message: "Notification tone unavailable", details: nil))
+      }
+    case "stopSoundPreview":
+      tones.stopPreview(session: args["soundSession"] as? String)
+      result(nil)
+    case "releaseSoundSession":
+      if let session = args["soundSession"] as? String { tones.release(session: session) }
       result(nil)
     case "remove":
       let ids = args["ids"] as? [String] ?? []
@@ -111,7 +125,9 @@ final class NotificationsChannel: NSObject, UNUserNotificationCenterDelegate {
     content.categoryIdentifier =
       args["canReply"] as? Bool ?? false ? Self.replyCategory : Self.readOnlyCategory
     content.userInfo = args["payload"] as? [String: Any] ?? [:]
-    if args["sound"] as? Bool ?? false { content.sound = .default }
+    // Fail closed for unavailable/corrupt custom files, not a surprise default
+    // alert. Only a removed saved tone uses TDLib's documented default fallback.
+    content.sound = try? tones.notificationSound(args)
     // An edit replaces the text in Notification Center without a new banner.
     if args["quiet"] as? Bool ?? false { content.interruptionLevel = .passive }
     if let avatar = Avatar.file(

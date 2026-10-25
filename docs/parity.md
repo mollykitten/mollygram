@@ -211,7 +211,7 @@ of real use without crashes; passing tests alone does not establish that.
 | Feature | Status | Notes | Size | M |
 |---|---|---|---|---|
 | Settings window shell in macOS System Settings style | done | Pages are descriptors in `settingsSections` | | |
-| Notifications and sounds: per-type, badge, preview, sound | partial | Global switches, preview, sound and badge (`NotificationsPage`); private chats, groups and channels have server-backed defaults for notifications, previews and sound (`NotificationScopePage`), updated live from TDLib without resetting per-chat exceptions. Telegram tones and custom sound playback remain missing | S | M1 |
+| Notifications and sounds: per-type, badge, preview, sound | partial | Global switches, preview, sound and badge (`NotificationsPage`); server-backed private/group/channel defaults without resetting per-chat exceptions. On macOS, `NotificationSoundsPage` selects system default, silence or a saved Telegram tone with preview and confirmed readback. Saved MP3 tones are decoded to supported PCM CAF; missing downloads stay silent, removed IDs follow TDLib's default fallback. Upload/removal UI and Windows/Linux notification delivery remain missing | S | M1 |
 | Active sessions and terminate | done | Session list and terminate one/all others; server-backed inactivity period with official 7/30/90/180/365-day presets, exact custom day counts, acknowledged save and confirmed readback. Loading/error/retry, keyboard and account-replacement safety; changing the period does not delete the account or issue terminate commands | S | M1 |
 | Privacy and security: last seen, phone, photo, calls, forwards, groups, blocked list | done | Nine settings with Everybody / My contacts / Nobody and always / never lists, finding by phone, blocked list with block and unblock ([privacy_settings_controller.dart](../packages/core/lib/src/privacy_settings_controller.dart)); exceptions add people from the contacts only, groups already in a list are kept and can be removed | | |
 | Two-step verification setup | done | Set, change and remove the password with a hint, recovery email with its code (resend, cancel, auto-submit at its length); a forgotten password is recovered by an email code, or reset after Telegram's wait without one (cancellable) | | |
@@ -235,7 +235,7 @@ of real use without crashes; passing tests alone does not establish that.
 |---|---|---|---|---|
 | Desktop notifications with reply and mark read | done | `NotificationController` on TDLib notification groups; macOS only, banners hidden while the window is in front | | |
 | Dock badge with unread count | done | Unmuted chats by default; muted chats and message count are options | | |
-| Notification sounds | partial | System default sound; Telegram tones and custom sounds missing | S | M1 |
+| Notification sounds | partial | macOS system default, silence and saved Telegram tones, native preview, account-isolated PCM CAF cache; silent messages, edits and removed/read notifications cannot revive pending playback. No tone upload/removal UI or built-in tone pack; Windows/Linux system notifications remain unsupported | S | M1 |
 | Menu bar and dock menu items | partial | Traffic lights done | S | M7 |
 | Share extension, Spotlight, Focus filters | missing | macOS-only niceties | M | M9 |
 | Auto update | missing | Sparkle or release-please assets | M | M8 |
