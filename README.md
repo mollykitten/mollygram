@@ -7,6 +7,10 @@
 </p>
 
 <p align="center">
+  <a href="https://mollygram.dev">Website</a> · <a href="https://docs.mollygram.dev">Documentation</a> · <a href="https://docs.mollygram.dev/plugins/quick-start/">Write a plugin</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/mollybyte/mollygram/actions/workflows/ci.yml"><img src="https://github.com/mollybyte/mollygram/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/mollybyte/mollygram?color=D6336C" alt="License"></a>
   <a href="https://github.com/mollybyte/mollygram/commits/main"><img src="https://img.shields.io/github/last-commit/mollybyte/mollygram?color=D6336C" alt="Last commit"></a>
@@ -28,7 +32,7 @@
 The layout follows the official Telegram Desktop, so there is nothing to relearn. On top of it: liquid glass and the features the official client is missing.
 
 > [!NOTE]
-> Early stage: sign-in, the chat list, chats with every message type, tabs, split view and the command palette work. The order of what comes next is in [`docs/roadmap.md`](docs/roadmap.md), the feature backlog against the official client in [`docs/parity.md`](docs/parity.md).
+> Early stage: sign-in, the chat list, chats with every message type, tabs, split view and the command palette work. User and plugin author guides are at [docs.mollygram.dev](https://docs.mollygram.dev). The order of what comes next is in [`docs/roadmap.md`](docs/roadmap.md), the feature backlog against the official client in [`docs/parity.md`](docs/parity.md).
 
 ## Planned features
 
