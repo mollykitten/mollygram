@@ -1,5 +1,7 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../forms/pressable.dart';
 import '../glass/glass.dart';
 import '../icon_button.dart';
 import '../icons.dart';
@@ -22,6 +24,7 @@ class MgCalendar extends StatefulWidget {
     required this.previousTooltip,
     required this.nextTooltip,
     this.first,
+    this.selected,
     this.firstWeekday = DateTime.monday,
   });
 
@@ -29,6 +32,10 @@ class MgCalendar extends StatefulWidget {
   final DateTime month;
   final DateTime today;
   final DateTime? first;
+
+  /// The day the calendar was opened for, if any; screen readers announce
+  /// it as selected. It is not drawn differently.
+  final DateTime? selected;
   final void Function(DateTime day) onPick;
 
   /// "October 2026".
@@ -67,6 +74,48 @@ class _MgCalendarState extends State<MgCalendar> {
 
   bool get _hasNext => DateTime(_today.year, _today.month).isAfter(_month);
 
+  final _nodes = <int, FocusNode>{};
+
+  FocusNode _node(int day) => _nodes[day] ??= FocusNode(debugLabel: 'day $day');
+
+  @override
+  void dispose() {
+    for (final node in _nodes.values) {
+      node.dispose();
+    }
+    super.dispose();
+  }
+
+  /// Arrows move between the days of the month: ←/→ by a day, ↑/↓ by a
+  /// week. A day that can't be picked is not a stop.
+  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final delta = key == LogicalKeyboardKey.arrowLeft
+        ? -1
+        : key == LogicalKeyboardKey.arrowRight
+        ? 1
+        : key == LogicalKeyboardKey.arrowUp
+        ? -7
+        : key == LogicalKeyboardKey.arrowDown
+        ? 7
+        : null;
+    if (delta == null) return KeyEventResult.ignored;
+    final from = _nodes.entries
+        .where((e) => e.value.hasPrimaryFocus)
+        .map((e) => e.key)
+        .firstOrNull;
+    if (from == null) return KeyEventResult.ignored;
+    final to = from + delta;
+    final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
+    if (to >= 1 &&
+        to <= daysInMonth &&
+        _enabled(DateTime(_month.year, _month.month, to))) {
+      _node(to).requestFocus();
+    }
+    return KeyEventResult.handled;
+  }
+
   void _move(int months) =>
       setState(() => _month = DateTime(_month.year, _month.month + months));
 
@@ -83,6 +132,7 @@ class _MgCalendarState extends State<MgCalendar> {
     // Blank cells before the first of the month.
     final lead = (_month.weekday - widget.firstWeekday + 7) % 7;
     final weeks = ((lead + daysInMonth) / 7).ceil();
+    final selected = widget.selected;
     return Glass(
       radius: MgRadius.popover,
       padding: const EdgeInsets.fromLTRB(
@@ -139,26 +189,48 @@ class _MgCalendarState extends State<MgCalendar> {
               ],
             ),
             const SizedBox(height: MgSpace.xs),
-            for (var week = 0; week < weeks; week++)
-              Row(
+            Focus(
+              canRequestFocus: false,
+              skipTraversal: true,
+              onKeyEvent: _onKey,
+              child: Column(
                 children: [
-                  for (var i = 0; i < 7; i++)
-                    () {
-                      final number = week * 7 + i - lead + 1;
-                      if (number < 1 || number > daysInMonth) {
-                        return const SizedBox.square(
-                          dimension: MgCalendar.cell,
-                        );
-                      }
-                      final day = DateTime(_month.year, _month.month, number);
-                      return _Day(
-                        label: '$number',
-                        today: day == _today,
-                        onTap: _enabled(day) ? () => widget.onPick(day) : null,
-                      );
-                    }(),
+                  for (var week = 0; week < weeks; week++)
+                    Row(
+                      children: [
+                        for (var i = 0; i < 7; i++)
+                          () {
+                            final number = week * 7 + i - lead + 1;
+                            if (number < 1 || number > daysInMonth) {
+                              return const SizedBox.square(
+                                dimension: MgCalendar.cell,
+                              );
+                            }
+                            final day = DateTime(
+                              _month.year,
+                              _month.month,
+                              number,
+                            );
+                            return _Day(
+                              key: ValueKey(number),
+                              label: '$number',
+                              today: day == _today,
+                              selected:
+                                  selected != null &&
+                                  (day.year == selected.year &&
+                                      day.month == selected.month &&
+                                      day.day == selected.day),
+                              focusNode: _node(number),
+                              onTap: _enabled(day)
+                                  ? () => widget.onPick(day)
+                                  : null,
+                            );
+                          }(),
+                      ],
+                    ),
                 ],
               ),
+            ),
           ],
         ),
       ),
@@ -166,33 +238,36 @@ class _MgCalendarState extends State<MgCalendar> {
   }
 }
 
-class _Day extends StatefulWidget {
-  const _Day({required this.label, required this.today, required this.onTap});
+class _Day extends StatelessWidget {
+  const _Day({
+    super.key,
+    required this.label,
+    required this.today,
+    required this.selected,
+    required this.focusNode,
+    required this.onTap,
+  });
 
   final String label;
   final bool today;
+  final bool selected;
+  final FocusNode focusNode;
   final VoidCallback? onTap;
-
-  @override
-  State<_Day> createState() => _DayState();
-}
-
-class _DayState extends State<_Day> {
-  var _hover = false;
 
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    final enabled = widget.onTap != null;
-    final lit = _hover && enabled;
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: SizedBox.square(
+    final enabled = onTap != null;
+    return MgPressable(
+      onTap: onTap,
+      focusNode: focusNode,
+      selected: selected,
+      excludeSemantics: false,
+      scale: 1,
+      focusRadius: MgCalendar.cell / 2,
+      builder: (context, st) {
+        final lit = (st.hovered || st.focused) && enabled;
+        return SizedBox.square(
           dimension: MgCalendar.cell,
           child: Center(
             child: AnimatedContainer(
@@ -203,20 +278,20 @@ class _DayState extends State<_Day> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: lit ? c.accent : const Color(0x00000000),
-                border: widget.today && !lit
+                border: today && !lit
                     ? Border.all(color: c.accent, width: 1.5)
                     : null,
               ),
               child: Text(
-                widget.label,
+                label,
                 style: mgTextStyle(
                   c,
-                  weight: widget.today ? FontWeight.w600 : FontWeight.w400,
+                  weight: today ? FontWeight.w600 : FontWeight.w400,
                   color: lit
                       ? c.onAccent
                       : !enabled
                       ? c.fg2.withValues(alpha: 0.4)
-                      : widget.today
+                      : today
                       ? c.accent
                       : c.fg,
                   height: 1,
@@ -224,8 +299,8 @@ class _DayState extends State<_Day> {
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

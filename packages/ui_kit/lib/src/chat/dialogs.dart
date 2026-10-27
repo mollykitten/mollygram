@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../forms/pressable.dart';
 import '../glass/glass.dart';
 import '../theme/colors.dart';
 import '../theme/theme.dart';
@@ -24,9 +25,16 @@ Future<T?> showMgSheet<T>(
       animate: animate,
       barrierColor: barrierColor,
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      pageBuilder: (context, _, _) => Material(
+      pageBuilder: (sheet, _, _) => Material(
         type: MaterialType.transparency,
-        child: Center(child: child),
+        // Esc closes every sheet alike, whatever has the focus inside it.
+        child: CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.escape): () =>
+                Navigator.of(sheet).maybePop(),
+          },
+          child: _FocusFallback(child: Center(child: child)),
+        ),
       ),
       transitionBuilder: (context, animation, _, child) {
         final curved = CurvedAnimation(
@@ -51,6 +59,48 @@ Future<T?> showMgSheet<T>(
       },
     ),
   );
+}
+
+/// Takes the focus for its subtree only if nothing inside autofocused, so a
+/// sheet with no focusable content still hears Esc, while the content's own
+/// autofocus (a text field, a button) is left alone.
+class _FocusFallback extends StatefulWidget {
+  const _FocusFallback({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_FocusFallback> createState() => _FocusFallbackState();
+}
+
+class _FocusFallbackState extends State<_FocusFallback> {
+  final _node = FocusNode(debugLabel: 'sheet', skipTraversal: true);
+
+  @override
+  void initState() {
+    super.initState();
+    // Autofocus resolves in a microtask after the first build, so look once
+    // that has run.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.microtask(() {
+        if (!mounted) return;
+        final scope = FocusScope.of(context);
+        if (scope.focusedChild == null || scope.hasPrimaryFocus) {
+          _node.requestFocus();
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      Focus(focusNode: _node, child: widget.child);
 }
 
 /// A dialog route that enters in [MgMotion.standard] and leaves in the
@@ -101,46 +151,40 @@ class _Choice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): () =>
-            Navigator.of(context).pop(),
-      },
-      child: Focus(
-        autofocus: true,
-        child: SizedBox(
-          width: 300,
-          child: Glass(
-            radius: MgRadius.popover,
-            padding: const EdgeInsets.fromLTRB(
-              MgSpace.xl,
-              MgSpace.xl,
-              MgSpace.xl,
-              MgSpace.l,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(title, style: mgTextStyle(c, weight: FontWeight.w600)),
-                const SizedBox(height: MgSpace.ml),
-                for (var i = 0; i < options.length; i++)
-                  _ChoiceRow(
-                    label: options[i],
-                    onTap: () => Navigator.of(context).pop(i),
-                  ),
-                const SizedBox(height: MgSpace.l),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    MgDialogButton(
-                      label: cancelLabel,
-                      onTap: () => Navigator.of(context).pop(),
-                    ),
-                  ],
+    return Focus(
+      autofocus: true,
+      child: SizedBox(
+        width: 300,
+        child: Glass(
+          radius: MgRadius.popover,
+          padding: const EdgeInsets.fromLTRB(
+            MgSpace.xl,
+            MgSpace.xl,
+            MgSpace.xl,
+            MgSpace.l,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(title, style: mgTextStyle(c, weight: FontWeight.w600)),
+              const SizedBox(height: MgSpace.ml),
+              for (var i = 0; i < options.length; i++)
+                _ChoiceRow(
+                  label: options[i],
+                  onTap: () => Navigator.of(context).pop(i),
                 ),
-              ],
-            ),
+              const SizedBox(height: MgSpace.l),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  MgDialogButton(
+                    label: cancelLabel,
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -148,55 +192,39 @@ class _Choice extends StatelessWidget {
   }
 }
 
-class _ChoiceRow extends StatefulWidget {
+class _ChoiceRow extends StatelessWidget {
   const _ChoiceRow({required this.label, required this.onTap});
 
   final String label;
   final VoidCallback onTap;
 
   @override
-  State<_ChoiceRow> createState() => _ChoiceRowState();
-}
-
-class _ChoiceRowState extends State<_ChoiceRow> {
-  var _hover = false;
-
-  @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return Semantics(
-      button: true,
-      label: widget.label,
-      onTap: widget.onTap,
-      excludeSemantics: true,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: MgMotion.fast,
-            height: 30,
-            padding: const EdgeInsets.symmetric(horizontal: MgSpace.ml),
-            alignment: Alignment.centerLeft,
-            decoration: BoxDecoration(
-              color: _hover ? c.accent : const Color(0x00000000),
-              borderRadius: BorderRadius.circular(MgRadius.small),
-            ),
-            child: Text(
-              widget.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: mgTextStyle(
-                c,
-                color: _hover ? c.onAccent : c.fg,
-                height: 1.2,
-              ),
-            ),
+    return MgPressable(
+      onTap: onTap,
+      semanticsLabel: label,
+      scale: 1,
+      focusRadius: MgRadius.small,
+      builder: (context, st) {
+        final lit = st.hovered || st.focused;
+        return AnimatedContainer(
+          duration: MgMotion.fast,
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: MgSpace.ml),
+          alignment: Alignment.centerLeft,
+          decoration: BoxDecoration(
+            color: lit ? c.accent : const Color(0x00000000),
+            borderRadius: BorderRadius.circular(MgRadius.small),
           ),
-        ),
-      ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: mgTextStyle(c, color: lit ? c.onAccent : c.fg, height: 1.2),
+          ),
+        );
+      },
     );
   }
 }
@@ -330,7 +358,7 @@ class _PromptState extends State<_Prompt> {
                       label: widget.confirmLabel,
                       filled: true,
                       color: c.accent,
-                      onTap: _confirm,
+                      onTap: _ready ? _confirm : null,
                     ),
                   ),
                 ],

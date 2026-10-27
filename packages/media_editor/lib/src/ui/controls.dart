@@ -9,60 +9,62 @@ class EditorChip extends StatefulWidget {
     required this.label,
     required this.selected,
     required this.onPressed,
+    this.toggle = false,
   });
 
   final String label;
   final bool selected;
-  final VoidCallback onPressed;
+
+  /// Null disables the chip: no focus, and screen readers hear it so.
+  final VoidCallback? onPressed;
+
+  /// The chip is an on/off switch (a fill, say) rather than one choice of a
+  /// strip; screen readers hear [selected] as its state.
+  final bool toggle;
 
   @override
   State<EditorChip> createState() => _EditorChipState();
 }
 
 class _EditorChipState extends State<EditorChip> {
-  var _hover = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    final bg = widget.selected
-        ? c.accent
-        : (_hover ? c.hover : const Color(0x00000000));
-    final fg = widget.selected ? c.onAccent : (_hover ? c.fg : c.fg2);
-    return Semantics(
-      button: true,
-      selected: widget.selected,
-      label: widget.label,
-      excludeSemantics: true,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onPressed,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            curve: Curves.easeOut,
-            height: 26,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Text(
-              widget.label,
-              style: mgTextStyle(
-                c,
-                size: MgType.small,
-                weight: FontWeight.w500,
-                color: fg,
-                height: 1,
-              ),
+    return MgPressable(
+      role: widget.toggle ? MgPressableRole.toggle : MgPressableRole.tab,
+      selected: widget.toggle ? null : widget.selected,
+      toggled: widget.toggle ? widget.selected : null,
+      semanticsLabel: widget.label,
+      onTap: widget.onPressed,
+      scale: 1,
+      focusRadius: 13,
+      builder: (context, st) {
+        final bg = widget.selected
+            ? c.accent
+            : (st.hovered ? c.hover : const Color(0x00000000));
+        final fg = widget.selected ? c.onAccent : (st.hovered ? c.fg : c.fg2);
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+          height: 26,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Text(
+            widget.label,
+            style: mgTextStyle(
+              c,
+              size: MgType.small,
+              weight: FontWeight.w500,
+              color: fg,
+              height: 1,
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../forms/pressable.dart';
 import '../glass/glass.dart';
 import '../icon_button.dart';
 import '../icons.dart';
@@ -1070,13 +1071,26 @@ class _ConfirmState extends State<_Confirm> {
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
+    final destructive = widget.destructive;
+    // A destructive confirm never answers a bare Enter: the key that chose
+    // "Delete" in a menu may still be down or repeating when this opens. It
+    // starts on Cancel, and Enter or Space act on the focused button only.
+    // A plain confirm keeps Enter as its answer, but not as a repeat.
     return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.enter): _confirm,
-        const SingleActivator(LogicalKeyboardKey.numpadEnter): _confirm,
-      },
+      bindings: destructive
+          ? const {}
+          : {
+              const SingleActivator(
+                LogicalKeyboardKey.enter,
+                includeRepeats: false,
+              ): _confirm,
+              const SingleActivator(
+                LogicalKeyboardKey.numpadEnter,
+                includeRepeats: false,
+              ): _confirm,
+            },
       child: Focus(
-        autofocus: true,
+        autofocus: !destructive,
         // The checkbox paints on Material.
         child: Material(
           type: MaterialType.transparency,
@@ -1099,6 +1113,7 @@ class _ConfirmState extends State<_Confirm> {
               ),
               MgDialogButton(
                 label: widget.cancelLabel,
+                autofocus: destructive,
                 onTap: () => Navigator.of(context).pop(),
               ),
             ],
@@ -1188,42 +1203,42 @@ class MgDialogButton extends StatelessWidget {
     required this.onTap,
     this.filled = false,
     this.color,
+    this.autofocus = false,
   });
 
   final String label;
-  final VoidCallback onTap;
+
+  /// Null disables the button: no focus, no click, and screen readers hear
+  /// it as disabled.
+  final VoidCallback? onTap;
+  final bool autofocus;
   final bool filled;
   final Color? color;
 
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return Semantics(
-      button: true,
-      label: label,
+    return MgPressable(
       onTap: onTap,
-      excludeSemantics: true,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            height: 28,
-            padding: const EdgeInsets.symmetric(horizontal: MgSpace.xl),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: filled ? color : c.field,
-              borderRadius: BorderRadius.circular(MgRadius.control),
-            ),
-            child: Text(
-              label,
-              style: mgTextStyle(
-                c,
-                weight: filled ? FontWeight.w600 : null,
-                color: filled ? c.onAccent : c.fg,
-                height: 1.2,
-              ),
-            ),
+      autofocus: autofocus,
+      semanticsLabel: label,
+      scale: 1,
+      focusRadius: MgRadius.control,
+      builder: (context, st) => Container(
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: MgSpace.xl),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: filled ? color : c.field,
+          borderRadius: BorderRadius.circular(MgRadius.control),
+        ),
+        child: Text(
+          label,
+          style: mgTextStyle(
+            c,
+            weight: filled ? FontWeight.w600 : null,
+            color: filled ? c.onAccent : c.fg,
+            height: 1.2,
           ),
         ),
       ),

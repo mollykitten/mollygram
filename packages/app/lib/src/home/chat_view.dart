@@ -2562,6 +2562,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
           tooltip: l10n.botKeyboard,
           iconSize: 18,
           selected: _keyboardHiddenFor != keyboard.$1,
+          toggle: true,
           onPressed: () => setState(
             () => _keyboardHiddenFor = _keyboardHiddenFor == keyboard.$1
                 ? 0
@@ -3558,6 +3559,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
       position: position,
       child: MgCalendar(
         month: day,
+        selected: day,
         today: DateTime.now(),
         first: oldest,
         monthTitle: (month) => DateFormat.yMMMM(locale).format(month),

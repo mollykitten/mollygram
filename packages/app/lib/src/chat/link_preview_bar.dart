@@ -105,6 +105,7 @@ class ComposerLinkPreview extends StatelessWidget {
                 ? l10n.linkPreviewBelowText
                 : l10n.linkPreviewAboveText,
             selected: aboveText,
+            toggle: true,
             iconSize: 14,
             onPressed: onToggleAbove,
           ),

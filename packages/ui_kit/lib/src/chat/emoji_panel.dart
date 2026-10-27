@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../forms/pressable.dart';
 import '../glass/glass.dart';
 import '../icons.dart';
 import '../sidebar/folder_tabs.dart';
@@ -336,38 +337,35 @@ class _SectionButton extends StatefulWidget {
 }
 
 class _SectionButtonState extends State<_SectionButton> {
-  var _hover = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    final button = Semantics(
-      button: true,
-      selected: widget.selected,
-      label: widget.label,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: Container(
-            width: 30,
-            height: 30,
-            margin: const EdgeInsets.symmetric(horizontal: 1),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: widget.selected
-                  ? c.field
-                  : _hover
-                  ? c.hover
-                  : const Color(0x00000000),
-              borderRadius: BorderRadius.circular(MgRadius.small),
-            ),
-            child: IconTheme.merge(
-              data: IconThemeData(color: widget.selected ? c.fg : c.fg2),
-              child: widget.child,
-            ),
+    // The margin sits outside so it is neither hit nor ringed.
+    final button = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 1),
+      child: MgPressable(
+        role: MgPressableRole.tab,
+        selected: widget.selected,
+        semanticsLabel: widget.label,
+        excludeSemantics: false,
+        onTap: widget.onTap,
+        scale: 1,
+        focusRadius: MgRadius.small,
+        builder: (context, st) => Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: widget.selected
+                ? c.field
+                : st.hovered
+                ? c.hover
+                : const Color(0x00000000),
+            borderRadius: BorderRadius.circular(MgRadius.small),
+          ),
+          child: IconTheme.merge(
+            data: IconThemeData(color: widget.selected ? c.fg : c.fg2),
+            child: widget.child,
           ),
         ),
       ),
@@ -405,36 +403,25 @@ class PanelCell extends StatefulWidget {
 }
 
 class _PanelCellState extends State<PanelCell> {
-  var _hover = false;
-
-  void _set(bool hover) {
-    setState(() => _hover = hover);
-    widget.onHover?.call(hover);
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return Semantics(
-      button: true,
-      label: widget.label,
-      onTap: widget.onTap,
-      excludeSemantics: widget.label != null,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => _set(true),
-        onExit: (_) => _set(false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: Container(
-            margin: const EdgeInsets.all(1),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _hover ? c.hover : const Color(0x00000000),
-              borderRadius: BorderRadius.circular(MgRadius.control),
-            ),
-            child: widget.child,
+    // The margin sits outside so it is neither hit nor ringed.
+    return Padding(
+      padding: const EdgeInsets.all(1),
+      child: MgPressable(
+        onTap: widget.onTap,
+        semanticsLabel: widget.label,
+        scale: 1,
+        focusRadius: MgRadius.control,
+        onHover: widget.onHover,
+        builder: (context, st) => Container(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: st.hovered ? c.hover : const Color(0x00000000),
+            borderRadius: BorderRadius.circular(MgRadius.control),
           ),
+          child: widget.child,
         ),
       ),
     );

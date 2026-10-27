@@ -256,7 +256,8 @@ class ShapePanel extends StatelessWidget {
         EditorChip(
           label: s.filled,
           selected: overlay?.filled ?? false,
-          onPressed: fillable ? () => onFilled(!overlay!.filled) : () {},
+          toggle: true,
+          onPressed: fillable ? () => onFilled(!overlay!.filled) : null,
         ),
         const EditorDivider(),
         ColorSwatches(color: color, onColor: onColor),
