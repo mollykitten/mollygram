@@ -190,9 +190,13 @@ class _CommandPaletteState extends State<CommandPalette> {
       _show(ready);
       return;
     }
-    // Never activate results from a different query or account while waiting.
-    _searching = true;
-    _show(const []);
+    // Earlier results stay on screen, dimmed and inert, until the search
+    // answers: `_searching` also blocks `_activate`.
+    if (_built) {
+      setState(() => _searching = true);
+    } else {
+      _searching = true;
+    }
     try {
       final groups = await _search.run(query);
       if (!mounted || generation != _generation) return;
@@ -405,7 +409,9 @@ class _CommandPaletteState extends State<CommandPalette> {
         _focus.requestFocus();
         unawaited(_refresh(force: true));
       };
-    } else if (_searching || (state?.loading ?? false)) {
+    } else if (_searching) {
+      label = s.searching;
+    } else if (state?.loading ?? false) {
       label = s.loadingSuggestions;
     } else if (state?.actionFailed ?? false) {
       label = s.recentUpdateFailed;
@@ -659,12 +665,18 @@ class _CommandPaletteState extends State<CommandPalette> {
         );
       }
     }
-    return SingleChildScrollView(
-      controller: _scroll,
-      padding: const EdgeInsets.all(6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: children,
+    return IgnorePointer(
+      ignoring: _searching,
+      child: Opacity(
+        opacity: _searching ? 0.5 : 1,
+        child: SingleChildScrollView(
+          controller: _scroll,
+          padding: const EdgeInsets.all(6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
+        ),
       ),
     );
   }
