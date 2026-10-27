@@ -138,60 +138,92 @@ final class NotificationService {
         _notificationVersions.removeWhere((key, _) => !keys.contains(key));
         _pendingDeliveries.removeWhere((key, _) => !keys.contains(key));
     }
-    // File preparation must not let a removal overtake its notification.
+    switch (event) {
+      case NotificationPosted(:final notification):
+        unawaited(_deliver(pending!, notification));
+      case NotificationsRemoved(:final keys):
+        _enqueue(() => _system.remove(keys));
+      case NotificationsSynced(:final keys):
+        _enqueue(() => _system.retain(keys));
+    }
+  }
+
+  /// Runs [task] after everything queued before it. A removal therefore
+  /// cannot overtake a show that was already queued.
+  void _enqueue(Future<void> Function() task) {
     _deliveryQueue = _deliveryQueue
         .then((_) async {
-          if (_disposed) return;
-          switch (event) {
-            case NotificationPosted(:final notification):
-              final delivery = pending!;
-              if (!_settings.enabled ||
-                  !identical(
-                    _notificationVersions[notification.key],
-                    delivery.version,
-                  )) {
-                return;
-              }
-              if (_l10n case final l10n?) {
-                var resource = const NotificationSoundResource();
-                if (_settings.sound &&
-                    notification.playSound &&
-                    !notification.isEdit &&
-                    notification.soundId > 0) {
-                  try {
-                    resource = await _controller.sounds
-                        .resolve(notification.soundId)
-                        .timeout(const Duration(seconds: 2));
-                  } on Object {
-                    // Keep the requested ID, but deliver silently if unavailable.
-                  }
-                }
-                if (_disposed ||
-                    !_settings.enabled ||
-                    !identical(
-                      _notificationVersions[notification.key],
-                      delivery.version,
-                    )) {
-                  return;
-                }
-                _pendingDeliveries.remove(notification.key);
-                await _system.show(
-                  present(
-                    delivery.latest,
-                    _l10n ?? l10n,
-                    soundResource: resource,
-                    alertNotification: delivery.initial,
-                  ),
-                );
-              }
-            case NotificationsRemoved(:final keys):
-              await _system.remove(keys);
-            case NotificationsSynced(:final keys):
-              await _system.retain(keys);
-          }
+          if (!_disposed) await task();
         })
         .catchError((Object _) {});
   }
+
+  /// Prepares the tone beside the queue, so a slow download delays only its
+  /// own banner and never other shows, removals or syncs, then queues the show.
+  Future<void> _deliver(
+    _PendingNotification delivery,
+    MessageNotification notification,
+  ) async {
+    bool current() =>
+        !_disposed &&
+        _settings.enabled &&
+        identical(_notificationVersions[notification.key], delivery.version);
+    // Whatever the exit, a stale or abandoned entry must not stay behind.
+    void forget() {
+      if (identical(_pendingDeliveries[notification.key], delivery)) {
+        _pendingDeliveries.remove(notification.key);
+      }
+      if (identical(
+        _notificationVersions[notification.key],
+        delivery.version,
+      )) {
+        _notificationVersions.remove(notification.key);
+      }
+    }
+
+    try {
+      var resource = const NotificationSoundResource();
+      if (_settings.sound &&
+          notification.playSound &&
+          !notification.isEdit &&
+          notification.soundId > 0) {
+        resource = await _resolveSound(notification.soundId);
+      }
+      if (!current()) return;
+      _enqueue(() async {
+        if (!current()) return;
+        // Taken out of the pending set only now, right before the show, so
+        // an edit arriving while the show waits in the queue still coalesces
+        // into `latest` and keeps the first alert's sound.
+        _pendingDeliveries.remove(notification.key);
+        // `_onEvent` is only subscribed after `start` set the language.
+        await _system.show(
+          present(
+            delivery.latest,
+            _l10n!,
+            soundResource: resource,
+            alertNotification: delivery.initial,
+          ),
+        );
+      });
+    } on Object {
+      forget();
+    }
+  }
+
+  final _soundLoads = <int, Future<NotificationSoundResource>>{};
+
+  /// One lookup per tone while it is in flight, however many notifications
+  /// ask for it; an unavailable tone means silence, not an error.
+  Future<NotificationSoundResource> _resolveSound(int soundId) =>
+      _soundLoads[soundId] ??= _controller.sounds
+          .resolve(soundId)
+          .timeout(const Duration(seconds: 2))
+          .catchError((Object _) => const NotificationSoundResource())
+          .whenComplete(() {
+            // A block body: returning the removed future would await itself.
+            _soundLoads.remove(soundId);
+          });
 
   void _onResponse(NotificationResponse response) {
     switch (response) {
