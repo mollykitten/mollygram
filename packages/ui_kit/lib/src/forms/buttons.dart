@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/colors.dart';
+import '../theme/metrics.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import 'pressable.dart';
@@ -110,22 +111,28 @@ class _MgTextButtonState extends State<MgTextButton> {
       builder: (context, st) => AnimatedContainer(
         duration: MgMotion.fast,
         curve: MgMotion.standardCurve,
-        height: 30,
-        padding: const EdgeInsets.symmetric(horizontal: MgSpace.ml),
-        alignment: Alignment.center,
+        constraints: BoxConstraints(minHeight: MgMetrics.scaled(context, 30)),
+        padding: const EdgeInsets.symmetric(
+          horizontal: MgSpace.ml,
+          vertical: MgSpace.xxs,
+        ),
         decoration: BoxDecoration(
           color: (st.hovered || st.pressed) && enabled
               ? c.hover
               : const Color(0x00000000),
           borderRadius: BorderRadius.circular(MgRadius.control),
         ),
-        child: Text(
-          widget.label,
-          style: mgTextStyle(
-            c,
-            weight: FontWeight.w500,
-            color: enabled ? c.accent : c.fg2,
-            height: 1.2,
+        child: Center(
+          widthFactor: 1,
+          heightFactor: 1,
+          child: Text(
+            widget.label,
+            style: mgTextStyle(
+              c,
+              weight: FontWeight.w500,
+              color: enabled ? c.accent : c.fg2,
+              height: 1.2,
+            ),
           ),
         ),
       ),

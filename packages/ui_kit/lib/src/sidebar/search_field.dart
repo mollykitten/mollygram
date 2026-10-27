@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../icons.dart';
 import '../theme/colors.dart';
+import '../theme/metrics.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 
@@ -28,7 +29,7 @@ class MgSearchField extends StatelessWidget {
     final c = MgColors.of(context);
     final style = mgTextStyle(c, size: MgType.small);
     return Container(
-      height: 30,
+      constraints: BoxConstraints(minHeight: MgMetrics.scaled(context, 30)),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: c.field,

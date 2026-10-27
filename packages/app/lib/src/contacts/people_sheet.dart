@@ -538,7 +538,9 @@ class _PersonRow extends StatelessWidget {
           excludeSemantics: true,
           child: AnimatedContainer(
             duration: MgMotion.fast,
-            height: 46,
+            constraints: BoxConstraints(
+              minHeight: MgMetrics.scaled(context, 46),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
               color: selected ? c.accent : c.accent.withValues(alpha: 0),

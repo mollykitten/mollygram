@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
@@ -22,6 +23,12 @@ class MgMetrics extends ThemeExtension<MgMetrics> {
 
   /// Air between two messages of the same sender.
   double get messageGap => compact ? 2 : 6;
+
+  /// [base] points, grown with the text scale of [context] but never below
+  /// [base]: geometry tied to text follows the font size setting, and at a
+  /// scale of 1.0 (or less) stays exactly as designed.
+  static double scaled(BuildContext context, double base) =>
+      math.max(base, MediaQuery.textScalerOf(context).scale(base));
 
   static MgMetrics of(BuildContext context) =>
       Theme.of(context).extension<MgMetrics>() ?? defaults;

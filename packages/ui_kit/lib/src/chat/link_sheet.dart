@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../glass/glass.dart';
 import '../theme/colors.dart';
+import '../theme/metrics.dart';
 import '../theme/theme.dart';
 import '../theme/tokens.dart';
 import 'dialogs.dart';
@@ -130,7 +131,9 @@ class _LinkSheetState extends State<_LinkSheet> {
                 ),
                 const SizedBox(height: MgSpace.l),
                 Container(
-                  height: 30,
+                  constraints: BoxConstraints(
+                    minHeight: MgMetrics.scaled(context, 30),
+                  ),
                   padding: const EdgeInsets.symmetric(horizontal: MgSpace.ml),
                   alignment: Alignment.centerLeft,
                   decoration: BoxDecoration(
@@ -195,20 +198,25 @@ class _SheetButton extends StatelessWidget {
         child: GestureDetector(
           onTap: onTap,
           child: Container(
-            height: 28,
+            constraints: BoxConstraints(
+              minHeight: MgMetrics.scaled(context, 28),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: MgSpace.xl),
-            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: filled ? c.accent : c.field,
               borderRadius: BorderRadius.circular(MgRadius.control),
             ),
-            child: Text(
-              label,
-              style: mgTextStyle(
-                c,
-                weight: filled ? FontWeight.w600 : null,
-                color: filled ? c.onAccent : c.fg,
-                height: 1.2,
+            child: Center(
+              widthFactor: 1,
+              heightFactor: 1,
+              child: Text(
+                label,
+                style: mgTextStyle(
+                  c,
+                  weight: filled ? FontWeight.w600 : null,
+                  color: filled ? c.onAccent : c.fg,
+                  height: 1.2,
+                ),
               ),
             ),
           ),
