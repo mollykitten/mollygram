@@ -519,9 +519,30 @@ void main() {
       final live = tester.getSemantics(find.bySemanticsLabel('Sound'));
       expect(live.flagsCollection.isToggled, Tristate.isTrue);
       expect(live.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
-      final fixed = tester.getSemantics(find.bySemanticsLabel('Ghost'));
-      expect(fixed.flagsCollection.isEnabled, Tristate.isFalse);
+      // A switch whose row handles the tap has no onChanged of its own, so
+      // it must not claim to be disabled.
+      final passive = tester.getSemantics(find.bySemanticsLabel('Ghost'));
+      expect(passive.flagsCollection.isEnabled, isNot(Tristate.isFalse));
+      expect(passive.flagsCollection.isToggled, Tristate.isFalse);
       handle.dispose();
+    });
+
+    testWidgets('a held Space or Enter toggles once, not once per repeat', (
+      tester,
+    ) async {
+      for (final key in [LogicalKeyboardKey.space, LogicalKeyboardKey.enter]) {
+        var changes = 0;
+        await tester.pumpWidget(
+          themed(MgSwitch(value: false, onChanged: (_) => changes++)),
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyDownEvent(key);
+        await tester.sendKeyRepeatEvent(key);
+        await tester.sendKeyRepeatEvent(key);
+        await tester.sendKeyUpEvent(key);
+        await tester.pump();
+        expect(changes, 1, reason: key.keyLabel);
+      }
     });
 
     testWidgets('without onChanged it shows the value and takes no focus', (

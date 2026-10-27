@@ -248,6 +248,12 @@ class _MgPressableState extends State<MgPressable> {
             LogicalKeyboardKey.enter,
             includeRepeats: false,
           ): const ActivateIntent(),
+          // `includeRepeats: false` only skips a repeat here; without these it
+          // would bubble to the app's own shortcuts and activate again.
+          const SingleActivator(LogicalKeyboardKey.space):
+              const DoNothingAndStopPropagationIntent(),
+          const SingleActivator(LogicalKeyboardKey.enter):
+              const DoNothingAndStopPropagationIntent(),
           if (secondary != null) ...const {
             SingleActivator(LogicalKeyboardKey.contextMenu):
                 _SecondaryActivateIntent(),
@@ -256,6 +262,7 @@ class _MgPressableState extends State<MgPressable> {
           },
         },
         actions: {
+          DoNothingAndStopPropagationIntent: DoNothingAction(),
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (_) {
               _activate();

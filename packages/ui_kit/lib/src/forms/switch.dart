@@ -68,12 +68,7 @@ class MgSwitch extends StatelessWidget {
     );
     final onChanged = this.onChanged;
     if (onChanged == null) {
-      return Semantics(
-        toggled: value,
-        enabled: false,
-        label: semanticLabel,
-        child: track,
-      );
+      return Semantics(toggled: value, label: semanticLabel, child: track);
     }
     return MgPressable(
       role: MgPressableRole.toggle,
