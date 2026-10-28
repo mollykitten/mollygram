@@ -1,9 +1,11 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:mollygram_ui_kit/mollygram_ui_kit.dart' show MgType;
 import 'package:plugin_host/plugin_host.dart';
 
 import 'colors.dart';
 import 'controller.dart';
+import 'scope.dart';
 import 'strings.dart';
 import 'widgets.dart';
 
@@ -31,40 +33,27 @@ class PluginsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dark =
-        (brightness ??
-            MediaQuery.maybePlatformBrightnessOf(context) ??
-            Brightness.light) ==
-        Brightness.dark;
-    final colors = dark ? PluginsColors.darkColors : PluginsColors.light;
     final s = PluginsStrings.forLocale(locale);
-    return PluginsTheme(
-      colors: colors,
-      child: DefaultTextStyle.merge(
-        style: TextStyle(
-          fontSize: 13,
-          color: colors.fg,
-          decoration: TextDecoration.none,
-        ),
-        child: _Scope(
-          controller: controller,
-          strings: s,
-          child: Overlay(
-            initialEntries: [
-              OverlayEntry(
-                builder: (context) {
-                  // Read through the scope: the entry is built once, while
-                  // the controller and language may change.
-                  final scope = _Scope.of(context);
-                  return ListenableBuilder(
-                    listenable: scope.controller,
-                    builder: (context, _) =>
-                        _Layout(controller: scope.controller, s: scope.strings),
-                  );
-                },
-              ),
-            ],
-          ),
+    return PluginsThemeScope(
+      brightness: brightness,
+      child: _Scope(
+        controller: controller,
+        strings: s,
+        child: Overlay(
+          initialEntries: [
+            OverlayEntry(
+              builder: (context) {
+                // Read through the scope: the entry is built once, while
+                // the controller and language may change.
+                final scope = _Scope.of(context);
+                return ListenableBuilder(
+                  listenable: scope.controller,
+                  builder: (context, _) =>
+                      _Layout(controller: scope.controller, s: scope.strings),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -112,12 +101,8 @@ class _Layout extends StatelessWidget {
             decoration: BoxDecoration(
               color: c.pane,
               border: Border(left: BorderSide(color: c.sep, width: .5)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x14000000),
-                  blurRadius: 30,
-                  offset: Offset(-8, 0),
-                ),
+              boxShadow: [
+                BoxShadow(color: c.sep, blurRadius: 30, offset: Offset(-8, 0)),
               ],
             ),
             child: selected == null
@@ -169,9 +154,10 @@ class _Sidebar extends StatelessWidget {
         header: true,
         child: Text(
           text,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
+          style: pluginsText(
+            context,
+            size: MgType.tiny,
+            weight: FontWeight.w600,
             color: c.fg2,
           ),
         ),
@@ -216,7 +202,7 @@ class _Sidebar extends StatelessWidget {
                       child: Text(
                         s.noResults,
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: c.fg2),
+                        style: pluginsText(context, color: c.fg2),
                       ),
                     ),
                 ],
@@ -256,37 +242,37 @@ class _Sidebar extends StatelessWidget {
       onTap: () => controller.select(e.id),
       label: name,
       hover: on ? null : c.hover,
-      child: Semantics(
-        selected: on,
-        child: Container(
-          height: 34,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: on ? c.accent : null,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              PluginIcon(glyph: e.glyphOr(name), color: e.iconColor, size: 22),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: on ? const Color(0xFFFFFFFF) : c.fg),
+      selected: on,
+      child: Container(
+        alignment: Alignment.centerLeft,
+        constraints: BoxConstraints(minHeight: pluginsScaled(context, 34)),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: on ? c.accent : null,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            PluginIcon(glyph: e.glyphOr(name), color: e.iconColor, size: 22),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: pluginsText(context, color: on ? c.onAccent : c.fg),
+              ),
+            ),
+            if (state.isNotEmpty)
+              Text(
+                state,
+                style: pluginsText(
+                  context,
+                  size: MgType.caption,
+                  color: on ? c.onAccentSecondary : c.fg2,
                 ),
               ),
-              if (state.isNotEmpty)
-                Text(
-                  state,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: on ? const Color(0xCCFFFFFF) : c.fg2,
-                  ),
-                ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -343,9 +329,10 @@ class _Details extends StatelessWidget {
                               header: true,
                               child: Text(
                                 name,
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w600,
+                                style: pluginsText(
+                                  context,
+                                  size: 18,
+                                  weight: FontWeight.w600,
                                 ),
                               ),
                             ),
@@ -354,7 +341,7 @@ class _Details extends StatelessWidget {
                               entry.builtIn
                                   ? '${s.builtIn} · ${m.version}'
                                   : author,
-                              style: TextStyle(color: c.fg2),
+                              style: pluginsText(context, color: c.fg2),
                             ),
                           ],
                         ),
@@ -390,13 +377,18 @@ class _Details extends StatelessWidget {
                   if ((own?.description ?? m.description) != null)
                     Text(
                       own?.description ?? m.description!,
-                      style: const TextStyle(height: 1.5),
+                      style: pluginsText(context, height: 1.5),
                     ),
                   _section(
                     s.access,
                     Group(
                       children: access.isEmpty
-                          ? [Text(s.noAccess, style: TextStyle(color: c.fg2))]
+                          ? [
+                              Text(
+                                s.noAccess,
+                                style: pluginsText(context, color: c.fg2),
+                              ),
+                            ]
                           : [for (final r in access) _AccessLine(r)],
                     ),
                   ),
@@ -425,25 +417,32 @@ class _Details extends StatelessWidget {
                               children: [
                                 SizedBox(
                                   width: 130,
-                                  child: Text(k.name, style: _mono(13)),
+                                  child: Text(
+                                    k.name,
+                                    style: _mono(context, MgType.small),
+                                  ),
                                 ),
                                 Expanded(
                                   child: Text(
                                     k.title,
-                                    style: TextStyle(color: c.fg2),
+                                    style: pluginsText(context, color: c.fg2),
                                   ),
                                 ),
                                 if (k.shortcut != null)
                                   Text(
                                     k.shortcut!,
-                                    style: _mono(11.5, color: c.fg2),
+                                    style: _mono(
+                                      context,
+                                      MgType.caption,
+                                      color: c.fg2,
+                                    ),
                                   ),
                               ],
                             ),
                         ],
                       ),
                     ),
-                  _manifest(c),
+                  _manifest(context, c),
                   if (entry.installed && !entry.builtIn)
                     Row(
                       children: [
@@ -454,7 +453,11 @@ class _Details extends StatelessWidget {
                                 : s.updated(
                                     s.ago(entry.updatedAt!, DateTime.now()),
                                   ),
-                            style: TextStyle(fontSize: 12, color: c.fg2),
+                            style: pluginsText(
+                              context,
+                              size: MgType.caption,
+                              color: c.fg2,
+                            ),
                           ),
                         ),
                         MgButton(
@@ -473,7 +476,7 @@ class _Details extends StatelessWidget {
     );
   }
 
-  Widget _manifest(PluginsColors c) => Column(
+  Widget _manifest(BuildContext context, PluginsColors c) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Align(
@@ -492,9 +495,10 @@ class _Details extends StatelessWidget {
                   const SizedBox(width: 4),
                   Text(
                     s.manifest,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    style: pluginsText(
+                      context,
+                      size: MgType.caption,
+                      weight: FontWeight.w600,
                       color: c.fg2,
                     ),
                   ),
@@ -513,7 +517,7 @@ class _Details extends StatelessWidget {
           ),
           child: _ManifestText(
             text: entry.manifestSource,
-            style: _mono(11.5).copyWith(height: 1.6),
+            style: _mono(context, MgType.caption).copyWith(height: 1.6),
           ),
         ),
     ],
@@ -532,12 +536,12 @@ class _Details extends StatelessWidget {
   ];
 }
 
-TextStyle _mono(double size, {Color? color}) => TextStyle(
-  fontFamily: monoFamily,
-  fontFamilyFallback: monoFallback,
-  fontSize: size,
-  color: color,
-);
+TextStyle _mono(BuildContext context, double size, {Color? color}) =>
+    pluginsText(context, size: size, color: color).copyWith(
+      fontFamily: monoFamily,
+      fontFamilyFallback: monoFallback,
+      letterSpacing: 0,
+    );
 
 /// The manifest as written, in a monospaced font.
 class _ManifestText extends StatelessWidget {
@@ -592,7 +596,14 @@ class _AccessLine extends StatelessWidget {
               children: [
                 Text(row.title),
                 const SizedBox(height: 1),
-                Text(row.detail, style: TextStyle(fontSize: 12, color: c.fg2)),
+                Text(
+                  row.detail,
+                  style: pluginsText(
+                    context,
+                    size: MgType.caption,
+                    color: c.fg2,
+                  ),
+                ),
               ],
             ),
           ),
@@ -685,7 +696,7 @@ class _ConsentSheet extends StatelessWidget {
       child: FocusScope(
         autofocus: true,
         child: ColoredBox(
-          color: const Color(0x14000000),
+          color: PluginsColors.scrim,
           child: Center(
             child: Semantics(
               scopesRoute: true,
@@ -703,9 +714,7 @@ class _ConsentSheet extends StatelessWidget {
                   boxShadow: [
                     BoxShadow(color: c.sep, spreadRadius: .5),
                     BoxShadow(
-                      color: c.dark
-                          ? const Color(0x8C000000)
-                          : const Color(0x2E000000),
+                      color: c.shadow,
                       blurRadius: 40,
                       offset: const Offset(0, 12),
                     ),
@@ -734,15 +743,16 @@ class _ConsentSheet extends StatelessWidget {
                                         name,
                                         update.manifest.version,
                                       ),
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
+                                style: pluginsText(
+                                  context,
+                                  size: 15,
+                                  weight: FontWeight.w600,
                                 ),
                               ),
                               if (e.manifest.author != null)
                                 Text(
                                   e.manifest.author!,
-                                  style: TextStyle(color: c.fg2),
+                                  style: pluginsText(context, color: c.fg2),
                                 ),
                             ],
                           ),

@@ -330,12 +330,11 @@ class _Options extends StatelessWidget implements SettingsGroupRow {
 
   @override
   Widget build(BuildContext context) {
-    final c = MgColors.of(context);
     final s = _strings(context);
     final labels = own?.labels ?? const <String, String>{};
-    return PluginsTheme(
-      // The select menu and the text field are the plugins screen's own.
-      colors: c.isDark ? PluginsColors.darkColors : PluginsColors.light,
+    return PluginsThemeScope(
+      // The select menu and the text field are the plugins screen's own;
+      // they follow the app's tokens through the scope.
       child: SettingsGroup(
         title: s.options,
         children: [
