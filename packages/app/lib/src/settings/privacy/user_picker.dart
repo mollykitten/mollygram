@@ -98,14 +98,9 @@ class _UserPickerState extends ConsumerState<UserPicker> {
               const SizedBox(height: 6),
               Expanded(
                 child: contacts == null
-                    ? const Center(child: SettingsSpinner())
+                    ? const MgStatusView.loading()
                     : shown.isEmpty
-                    ? Center(
-                        child: Text(
-                          l10n.nothingFound,
-                          style: mgTextStyle(c, color: c.fg2),
-                        ),
-                      )
+                    ? MgStatusView.empty(l10n.nothingFound)
                     : ListView.builder(
                         itemCount: shown.length,
                         itemBuilder: (context, i) {

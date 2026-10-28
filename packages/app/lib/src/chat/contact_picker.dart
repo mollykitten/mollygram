@@ -34,7 +34,6 @@ class _ContactPickerState extends ConsumerState<_ContactPicker> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final c = MgColors.of(context);
     final query = _search.text.trim().toLowerCase();
     final loaded = ref.watch(contactsProvider).value;
     final contacts = [
@@ -56,15 +55,11 @@ class _ContactPickerState extends ConsumerState<_ContactPicker> {
           const SizedBox(height: 6),
           Expanded(
             child: contacts.isEmpty
-                ? Center(
-                    // Nothing yet while the contacts load.
-                    child: loaded == null
-                        ? const SizedBox()
-                        : Text(
-                            l10n.nothingFound,
-                            style: mgTextStyle(c, color: c.fg2),
-                          ),
-                  )
+                ? loaded == null
+                      ? const MgStatusView.loading(
+                          delay: Duration(milliseconds: 300),
+                        )
+                      : MgStatusView.empty(l10n.nothingFound)
                 : ListView.builder(
                     itemCount: contacts.length,
                     itemBuilder: (context, i) {

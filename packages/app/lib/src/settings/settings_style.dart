@@ -510,13 +510,7 @@ class SettingsSpinner extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) => SizedBox.square(
-    dimension: size,
-    child: CircularProgressIndicator(
-      strokeWidth: 1.6,
-      color: MgColors.of(context).fg2,
-    ),
-  );
+  Widget build(BuildContext context) => MgSpinner(size: size);
 }
 
 /// [settingsMotion], or nothing when animations are off (the system's or

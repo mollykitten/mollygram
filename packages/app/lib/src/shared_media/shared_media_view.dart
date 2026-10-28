@@ -9,7 +9,6 @@ import 'package:mollygram_ui_kit/mollygram_ui_kit.dart';
 import '../../l10n/app_localizations.dart';
 import '../chat/file_content.dart';
 import '../chat/formatted_text.dart' show openLink;
-import '../chat/load_spinner.dart';
 import '../chat/media_content.dart';
 import '../chat/media_viewer.dart';
 import '../chat/message_tile.dart' show SenderAvatar;
@@ -124,14 +123,9 @@ class _GroupsListState extends ConsumerState<_GroupsList> {
       builder: (context, snapshot) {
         final groups = snapshot.data;
         if (groups == null) {
-          return Center(
-            child: snapshot.hasError
-                ? Text(
-                    l10n.sharedLoadFailed,
-                    style: mgTextStyle(c, color: c.fg2),
-                  )
-                : const LoadSpinner(),
-          );
+          return snapshot.hasError
+              ? MgStatusView.error(l10n.sharedLoadFailed)
+              : const MgStatusView.loading(delay: Duration(milliseconds: 300));
         }
         if (groups.isEmpty) {
           return Center(
@@ -290,24 +284,16 @@ class _SharedListState extends ConsumerState<_SharedList> {
 
   @override
   Widget build(BuildContext context) {
-    final c = MgColors.of(context);
     final l10n = AppLocalizations.of(context);
     final messages = _list.messages;
     if (messages.isEmpty) {
-      return Center(
-        child: switch (_load) {
-          _Load.loading => const LoadSpinner(),
-          _Load.failed => Text(
-            l10n.sharedLoadFailed,
-            style: mgTextStyle(c, color: c.fg2),
-          ),
-          _Load.ready => Text(
-            _empty(l10n),
-            textAlign: TextAlign.center,
-            style: mgTextStyle(c, color: c.fg2),
-          ),
-        },
-      );
+      return switch (_load) {
+        _Load.loading => const MgStatusView.loading(
+          delay: Duration(milliseconds: 300),
+        ),
+        _Load.failed => MgStatusView.error(l10n.sharedLoadFailed),
+        _Load.ready => MgStatusView.empty(_empty(l10n)),
+      };
     }
     if (widget.kind case SharedMediaKind.media || SharedMediaKind.gifs) {
       return _grid(messages);

@@ -160,7 +160,6 @@ class _SidebarState extends ConsumerState<Sidebar> {
 
   @override
   Widget build(BuildContext context) {
-    final c = MgColors.of(context);
     final l10n = AppLocalizations.of(context);
     final list = ref.watch(selectedChatListProvider);
     final folders = ref.watch(chatFoldersProvider).value ?? const [];
@@ -323,15 +322,12 @@ class _SidebarState extends ConsumerState<Sidebar> {
         child: KeyedSubtree(
           key: ValueKey(list),
           child: shown.isEmpty && !showArchive
-              ? Center(
-                  child: Text(
-                    query.isNotEmpty
-                        ? l10n.nothingFound
-                        : list.isArchive
-                        ? l10n.noArchivedChats
-                        : l10n.noChats,
-                    style: TextStyle(color: c.fg2),
-                  ),
+              ? MgStatusView.empty(
+                  query.isNotEmpty
+                      ? l10n.nothingFound
+                      : list.isArchive
+                      ? l10n.noArchivedChats
+                      : l10n.noChats,
                 )
               : _ChatList(
                   list: list,
