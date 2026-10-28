@@ -82,7 +82,7 @@ class AdjustPanel extends StatelessWidget {
                 onChangeEnd: onChangeEnd,
               ),
               SizedBox(
-                width: 36,
+                width: MgMetrics.scaled(context, 36),
                 child: Text(
                   percent > 0 && selected.isSigned ? '+$percent' : '$percent',
                   textAlign: TextAlign.right,
@@ -132,9 +132,13 @@ class _LevelSlider extends StatelessWidget {
       slider: true,
       label: label,
       value: '${(value * 100).round()}',
+      increasedValue:
+          '${((value + 0.1).clamp(signed ? -1.0 : 0.0, 1.0) * 100).round()}',
+      decreasedValue:
+          '${((value - 0.1).clamp(signed ? -1.0 : 0.0, 1.0) * 100).round()}',
       child: SizedBox(
         width: 150,
-        height: 32,
+        height: MgMetrics.scaled(context, 32),
         child: SliderTheme(
           data: SliderThemeData(
             trackHeight: 3,

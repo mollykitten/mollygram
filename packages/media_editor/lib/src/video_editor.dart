@@ -401,7 +401,12 @@ class _VideoEditorPageState extends State<VideoEditorPage>
               Positioned.fill(child: EditorBackdrop(colors: c)),
               Positioned.fill(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(32, 32, 32, 112),
+                  padding: EdgeInsets.fromLTRB(
+                    32,
+                    32,
+                    32,
+                    MgMetrics.scaled(context, 112),
+                  ),
                   child: _buildStage(context),
                 ),
               ),
@@ -458,74 +463,77 @@ class _VideoEditorPageState extends State<VideoEditorPage>
     return Glass(
       radius: 22,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(width: 4),
-          MgTextButton(label: s.cancel, onPressed: _saving ? null : _cancel),
-          const SizedBox(width: 8),
-          MgIconButton(
-            icon: _edit.muted ? MgIcons.muted : MgIcons.volume,
-            tooltip: _edit.muted ? s.unmute : s.mute,
-            selected: _edit.muted,
-            toggle: true,
-            onPressed: ready && info.hasAudio ? _toggleMute : null,
-          ),
-          MgIconButton(
-            icon: EditorIcons.cover,
-            tooltip: _playheadIsCover ? s.coverFrame : s.setCover,
-            selected: _playheadIsCover,
-            toggle: true,
-            onPressed: ready ? _toggleCover : null,
-          ),
-          const EditorDivider(),
-          Filmstrip(
-            duration: _duration,
-            start: _edit.start,
-            end: _end,
-            playhead: _playhead,
-            cover: _edit.cover,
-            frames: _thumbs,
-            width: _stripWidth,
-            height: _stripHeight,
-            onScrub: ready ? (at) => setState(() => _seek(at)) : (_) {},
-            onTrim: ready ? _trim : (_, _) {},
-            onTrimEnd: () {},
-          ),
-          const EditorDivider(),
-          SizedBox(
-            width: 118,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${formatTime(_edit.start)} – ${formatTime(_end)}',
-                  style: readout.copyWith(color: c.fg),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${(length.inMilliseconds / 1000).toStringAsFixed(1)} '
-                  '${s.secondsShort}',
-                  style: readout.copyWith(color: c.fg2),
-                ),
-              ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(width: 4),
+            MgTextButton(label: s.cancel, onPressed: _saving ? null : _cancel),
+            const SizedBox(width: 8),
+            MgIconButton(
+              icon: _edit.muted ? MgIcons.muted : MgIcons.volume,
+              tooltip: _edit.muted ? s.unmute : s.mute,
+              selected: _edit.muted,
+              toggle: true,
+              onPressed: ready && info.hasAudio ? _toggleMute : null,
             ),
-          ),
-          const SizedBox(width: 12),
-          if (_saveFailed) ...[
-            Text(
-              s.failed,
-              style: mgTextStyle(c, size: MgType.caption, color: c.fg2),
+            MgIconButton(
+              icon: EditorIcons.cover,
+              tooltip: _playheadIsCover ? s.coverFrame : s.setCover,
+              selected: _playheadIsCover,
+              toggle: true,
+              onPressed: ready ? _toggleCover : null,
             ),
-            const SizedBox(width: 10),
+            const EditorDivider(),
+            Filmstrip(
+              duration: _duration,
+              start: _edit.start,
+              end: _end,
+              playhead: _playhead,
+              cover: _edit.cover,
+              frames: _thumbs,
+              width: _stripWidth,
+              height: _stripHeight,
+              onScrub: ready ? (at) => setState(() => _seek(at)) : (_) {},
+              onTrim: ready ? _trim : (_, _) {},
+              onTrimEnd: () {},
+            ),
+            const EditorDivider(),
+            SizedBox(
+              width: MgMetrics.scaled(context, 118),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${formatTime(_edit.start)} – ${formatTime(_end)}',
+                    style: readout.copyWith(color: c.fg),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${(length.inMilliseconds / 1000).toStringAsFixed(1)} '
+                    '${s.secondsShort}',
+                    style: readout.copyWith(color: c.fg2),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            if (_saveFailed) ...[
+              Text(
+                s.failed,
+                style: mgTextStyle(c, size: MgType.caption, color: c.fg2),
+              ),
+              const SizedBox(width: 10),
+            ],
+            MgPrimaryButton(
+              label: _saving ? s.saving : s.done,
+              height: MgMetrics.scaled(context, 28),
+              onPressed: ready ? _done : null,
+            ),
           ],
-          MgPrimaryButton(
-            label: _saving ? s.saving : s.done,
-            height: 28,
-            onPressed: ready ? _done : null,
-          ),
-        ],
+        ),
       ),
     );
   }

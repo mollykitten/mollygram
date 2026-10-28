@@ -32,6 +32,7 @@ final class MediaEditorStrings {
     required this.eraser,
     required this.color,
     required this.thickness,
+    required this.timeline,
     required this.text,
     required this.textHint,
     required this.plain,
@@ -91,6 +92,7 @@ final class MediaEditorStrings {
   final String eraser;
   final String color;
   final String thickness;
+  final String timeline;
 
   /// Text, emoji and shape overlays.
   final String text;
@@ -156,6 +158,7 @@ final class MediaEditorStrings {
     eraser: 'Eraser',
     color: 'Color',
     thickness: 'Thickness',
+    timeline: 'Timeline',
     text: 'Text',
     textHint: 'Type text',
     plain: 'Plain',
@@ -222,6 +225,7 @@ final class MediaEditorStrings {
     eraser: 'Ластик',
     color: 'Цвет',
     thickness: 'Толщина',
+    timeline: 'Таймлайн',
     text: 'Текст',
     textHint: 'Введите текст',
     plain: 'Обычный',

@@ -39,7 +39,7 @@ class TextPanel extends StatelessWidget {
         const SizedBox(width: 6),
         Container(
           width: 180,
-          height: 28,
+          constraints: BoxConstraints(minHeight: MgMetrics.scaled(context, 28)),
           padding: const EdgeInsets.symmetric(horizontal: 9),
           alignment: Alignment.centerLeft,
           decoration: BoxDecoration(
@@ -150,7 +150,7 @@ class EmojiGridPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 10 * 34,
+    width: 10 * MgMetrics.scaled(context, 34),
     child: Wrap(
       children: [
         for (final emoji in editorEmoji)
@@ -176,31 +176,31 @@ class _EmojiCellState extends State<_EmojiCell> {
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          width: 34,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: _hover ? c.hover : const Color(0x00000000),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: AnimatedScale(
-            scale: _hover ? 1.15 : 1,
-            duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOutBack,
-            child: Text(
-              widget.emoji,
-              style: const TextStyle(
-                fontSize: 20,
-                fontFamilyFallback: ['Apple Color Emoji', 'Noto Color Emoji'],
-              ),
+    final size = MgMetrics.scaled(context, 34);
+    return MgPressable(
+      semanticsLabel: widget.emoji,
+      onTap: widget.onPressed,
+      onHover: (h) => setState(() => _hover = h),
+      scale: 1,
+      focusRadius: 8,
+      builder: (context, st) => AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: _hover ? c.hover : const Color(0x00000000),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: AnimatedScale(
+          scale: _hover ? 1.15 : 1,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutBack,
+          child: Text(
+            widget.emoji,
+            style: const TextStyle(
+              fontSize: 20,
+              fontFamilyFallback: ['Apple Color Emoji', 'Noto Color Emoji'],
             ),
           ),
         ),
@@ -305,7 +305,7 @@ class StickerPanel extends StatelessWidget {
           curve: Curves.easeOut,
           alignment: Alignment.centerLeft,
           child: overlay == null
-              ? const SizedBox(height: 32)
+              ? SizedBox(height: MgMetrics.scaled(context, 32))
               : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

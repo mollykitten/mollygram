@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:mollygram_ui_kit/mollygram_ui_kit.dart';
 
+import '../strings.dart';
+
 /// The trim timeline of the video editor: frames of the whole video with
 /// the kept range framed between two handles, a playhead that scrubs, and
 /// a mark on the cover frame.
@@ -137,10 +139,19 @@ class _FilmstripState extends State<Filmstrip> {
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
     final active = _drag ?? _hover;
+    final step = Duration(
+      milliseconds: math.max(100, widget.duration.inMilliseconds ~/ 20),
+    );
+    Duration nudged(Duration by) =>
+        _clamp(widget.playhead + by, widget.start, widget.end);
     return Semantics(
       slider: true,
-      label: 'Timeline',
+      label: MediaEditorStrings.of(context).timeline,
       value: '${widget.start.inMilliseconds}-${widget.end.inMilliseconds}',
+      increasedValue: '${nudged(step).inMilliseconds}',
+      decreasedValue: '${nudged(-step).inMilliseconds}',
+      onIncrease: () => widget.onScrub(nudged(step)),
+      onDecrease: () => widget.onScrub(nudged(-step)),
       child: MouseRegion(
         cursor: switch (active) {
           _Drag.start || _Drag.end => SystemMouseCursors.resizeLeftRight,
