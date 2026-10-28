@@ -306,34 +306,32 @@ class _OptionRow extends StatelessWidget {
             padding: const EdgeInsets.only(right: 8),
             child: Tooltip(
               message: correctTooltip,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onCorrect,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: correct ? c.accent : const Color(0x00000000),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: correct
-                            ? c.accent
-                            : c.fg2.withValues(alpha: 0.7),
-                        width: 1.5,
-                      ),
+              child: MgPressable(
+                onTap: onCorrect,
+                role: MgPressableRole.radio,
+                checked: correct,
+                semanticsLabel: correctTooltip,
+                focusRadius: 9,
+                builder: (context, _) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: correct ? c.accent : const Color(0x00000000),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: correct ? c.accent : c.fg2.withValues(alpha: 0.7),
+                      width: 1.5,
                     ),
-                    child: correct
-                        ? MgIcon(
-                            MgIcons.check,
-                            size: 12,
-                            color: c.onAccent,
-                            stroke: 2.4,
-                          )
-                        : null,
                   ),
+                  child: correct
+                      ? MgIcon(
+                          MgIcons.check,
+                          size: 12,
+                          color: c.onAccent,
+                          stroke: 2.4,
+                        )
+                      : null,
                 ),
               ),
             ),
@@ -378,27 +376,26 @@ class _SwitchRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
     // The whole row takes the click, as a System Settings row does.
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: enabled ? () => onChanged(!value) : null,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: mgTextStyle(c, color: enabled ? c.fg : c.fg2),
-                ),
+    return MgPressable(
+      onTap: enabled ? () => onChanged(!value) : null,
+      role: MgPressableRole.toggle,
+      toggled: value,
+      scale: 1,
+      builder: (context, _) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: mgTextStyle(c, color: enabled ? c.fg : c.fg2),
               ),
-              Opacity(
-                opacity: enabled ? 1 : 0.5,
-                child: MgSwitch(value: value),
-              ),
-            ],
-          ),
+            ),
+            Opacity(
+              opacity: enabled ? 1 : 0.5,
+              child: MgSwitch(value: value),
+            ),
+          ],
         ),
       ),
     );

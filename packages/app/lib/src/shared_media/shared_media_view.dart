@@ -180,49 +180,34 @@ class _GroupRow extends StatefulWidget {
 }
 
 class _GroupRowState extends State<_GroupRow> {
-  var _hover = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return Semantics(
-      button: widget.onTap != null,
-      label: widget.title,
-      excludeSemantics: true,
+    return MgPressable(
       onTap: widget.onTap,
-      child: MouseRegion(
-        cursor: widget.onTap == null
-            ? MouseCursor.defer
-            : SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-            decoration: BoxDecoration(
-              color: _hover && widget.onTap != null
-                  ? c.fg.withValues(alpha: 0.06)
-                  : null,
-              borderRadius: BorderRadius.circular(8),
+      semanticsLabel: widget.title,
+      scale: 1,
+      focusRadius: 8,
+      builder: (context, state) => AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+        decoration: BoxDecoration(
+          color: state.hovered ? c.fg.withValues(alpha: 0.06) : null,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            SenderAvatar(name: widget.title, size: 36, photo: widget.photo),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: mgTextStyle(c, weight: FontWeight.w500),
+              ),
             ),
-            child: Row(
-              children: [
-                SenderAvatar(name: widget.title, size: 36, photo: widget.photo),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    widget.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: mgTextStyle(c, weight: FontWeight.w500),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          ],
         ),
       ),
     );
@@ -455,8 +440,6 @@ class _LinkRow extends StatefulWidget {
 }
 
 class _LinkRowState extends State<_LinkRow> {
-  var _hover = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
@@ -465,81 +448,78 @@ class _LinkRowState extends State<_LinkRow> {
     return Semantics(
       link: true,
       label: link.title,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: () => unawaited(openLink(link.url)),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: _hover ? c.hover : const Color(0x00000000),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: c.field,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    initial,
-                    style: mgTextStyle(
-                      c,
-                      size: 17,
-                      weight: FontWeight.w600,
-                      color: c.fg2,
-                    ),
+      child: MgPressable(
+        onTap: () => unawaited(openLink(link.url)),
+        scale: 1,
+        focusRadius: 8,
+        builder: (context, state) => AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: state.hovered ? c.hover : const Color(0x00000000),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: c.field,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  initial,
+                  style: mgTextStyle(
+                    c,
+                    size: 17,
+                    weight: FontWeight.w600,
+                    color: c.fg2,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              link.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: mgTextStyle(c, weight: FontWeight.w600),
-                            ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            link.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: mgTextStyle(c, weight: FontWeight.w600),
                           ),
-                          const SizedBox(width: 8),
-                          widget.date,
-                        ],
-                      ),
-                      if (link.description.isNotEmpty)
-                        Text(
-                          link.description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: mgTextStyle(c, size: MgType.small),
                         ),
+                        const SizedBox(width: 8),
+                        widget.date,
+                      ],
+                    ),
+                    if (link.description.isNotEmpty)
                       Text(
-                        link.url,
-                        maxLines: 1,
+                        link.description,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: mgTextStyle(
-                          c,
-                          size: MgType.small,
-                          color: c.accent,
-                        ),
+                        style: mgTextStyle(c, size: MgType.small),
                       ),
-                    ],
-                  ),
+                    Text(
+                      link.url,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: mgTextStyle(
+                        c,
+                        size: MgType.small,
+                        color: c.accent,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

@@ -165,31 +165,24 @@ class ToggleRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
     final enabled = onChanged != null;
-    return Semantics(
-      toggled: value,
-      enabled: enabled,
-      label: label,
-      excludeSemantics: true,
+    return MgPressable(
       onTap: enabled ? () => onChanged!(!value) : null,
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: enabled ? () => onChanged!(!value) : null,
-          child: Padding(
-            padding: padding,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    label,
-                    style: mgTextStyle(c, color: enabled ? c.fg : c.fg2),
-                  ),
-                ),
-                _Switch(value: value, enabled: enabled),
-              ],
+      role: MgPressableRole.toggle,
+      toggled: value,
+      semanticsLabel: label,
+      scale: 1,
+      builder: (context, _) => Padding(
+        padding: padding,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: mgTextStyle(c, color: enabled ? c.fg : c.fg2),
+              ),
             ),
-          ),
+            _Switch(value: value, enabled: enabled),
+          ],
         ),
       ),
     );
@@ -256,7 +249,6 @@ class ChoiceRow<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
     return Container(
-      height: 28,
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: c.field,
@@ -266,37 +258,33 @@ class ChoiceRow<T> extends StatelessWidget {
         children: [
           for (final (option, label) in options)
             Expanded(
-              child: Semantics(
-                button: true,
+              child: MgPressable(
+                onTap: onChanged == null ? null : () => onChanged!(option),
+                role: MgPressableRole.tab,
                 selected: option == value,
-                label: label,
-                excludeSemantics: true,
-                child: MouseRegion(
-                  cursor: onChanged == null
-                      ? MouseCursor.defer
-                      : SystemMouseCursors.click,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onChanged == null ? null : () => onChanged!(option),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 140),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: option == value
-                            ? c.windowBackground
-                            : const Color(0x00000000),
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: mgTextStyle(
-                          c,
-                          size: MgType.small,
-                          color: onChanged == null ? c.fg2 : c.fg,
-                        ),
-                      ),
+                semanticsLabel: label,
+                scale: 1,
+                focusRadius: 5,
+                builder: (context, _) => AnimatedContainer(
+                  constraints: BoxConstraints(
+                    minHeight: MgMetrics.scaled(context, 24),
+                  ),
+                  duration: const Duration(milliseconds: 140),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: option == value
+                        ? c.windowBackground
+                        : const Color(0x00000000),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: mgTextStyle(
+                      c,
+                      size: MgType.small,
+                      color: onChanged == null ? c.fg2 : c.fg,
                     ),
                   ),
                 ),
@@ -333,62 +321,53 @@ class PersonRow extends StatefulWidget {
 }
 
 class _PersonRowState extends State<PersonRow> {
-  var _hover = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return MouseRegion(
-      cursor: widget.onTap == null
-          ? MouseCursor.defer
-          : SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-          decoration: BoxDecoration(
-            color: _hover && widget.onTap != null
-                ? c.hover
-                : const Color(0x00000000),
-            borderRadius: BorderRadius.circular(7),
-          ),
-          child: Row(
-            children: [
-              widget.avatar,
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+    return MgPressable(
+      onTap: widget.onTap,
+      scale: 1,
+      focusRadius: 7,
+      excludeSemantics: false,
+      builder: (context, state) => AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+        decoration: BoxDecoration(
+          color: state.hovered ? c.hover : const Color(0x00000000),
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Row(
+          children: [
+            widget.avatar,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: mgTextStyle(c, height: 1.3),
+                  ),
+                  if (widget.subtitle.isNotEmpty)
                     Text(
-                      widget.name,
-                      maxLines: 1,
+                      widget.subtitle,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: mgTextStyle(c, height: 1.3),
-                    ),
-                    if (widget.subtitle.isNotEmpty)
-                      Text(
-                        widget.subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: mgTextStyle(
-                          c,
-                          size: MgType.caption,
-                          color: c.fg2,
-                          height: 1.3,
-                        ),
+                      style: mgTextStyle(
+                        c,
+                        size: MgType.caption,
+                        color: c.fg2,
+                        height: 1.3,
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
-              for (final (label, action) in widget.actions)
-                MgTextButton(label: label, onPressed: action),
-            ],
-          ),
+            ),
+            for (final (label, action) in widget.actions)
+              MgTextButton(label: label, onPressed: action),
+          ],
         ),
       ),
     );
