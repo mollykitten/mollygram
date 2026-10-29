@@ -307,6 +307,18 @@ class _Option extends StatelessWidget {
       ),
     );
     if (onTap == null && onTapAt == null) return row;
+    if (onTapAt == null) {
+      return MgPressable(
+        onTap: onTap,
+        role: multiple ? MgPressableRole.checkbox : MgPressableRole.radio,
+        checked: picked,
+        scale: 1,
+        focusRadius: 6,
+        builder: (context, _) => row,
+      );
+    }
+    // The click position (to anchor the voters popover) is beyond
+    // MgPressable, so this one stays a bare gesture.
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
@@ -395,39 +407,33 @@ class _VoterRow extends StatefulWidget {
 }
 
 class _VoterRowState extends State<_VoterRow> {
-  var _hover = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          decoration: BoxDecoration(
-            color: _hover ? c.hover : const Color(0x00000000),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Row(
-            children: [
-              SenderAvatar(name: widget.name, size: 24, photo: widget.photo),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  widget.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: mgTextStyle(c),
-                ),
+    return MgPressable(
+      onTap: widget.onTap,
+      scale: 1,
+      focusRadius: 6,
+      builder: (context, state) => AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        decoration: BoxDecoration(
+          color: state.hovered ? c.hover : const Color(0x00000000),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          children: [
+            SenderAvatar(name: widget.name, size: 24, photo: widget.photo),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                widget.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: mgTextStyle(c),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -519,20 +525,18 @@ class _TextButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: enabled ? onTap : null,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 160),
-            opacity: enabled ? 1 : 0.45,
-            child: Text(
-              label,
-              style: mgTextStyle(c, weight: FontWeight.w600, color: c.accent),
-            ),
+    return MgPressable(
+      onTap: enabled ? onTap : null,
+      scale: 1,
+      focusRadius: 6,
+      builder: (context, _) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 160),
+          opacity: enabled ? 1 : 0.45,
+          child: Text(
+            label,
+            style: mgTextStyle(c, weight: FontWeight.w600, color: c.accent),
           ),
         ),
       ),

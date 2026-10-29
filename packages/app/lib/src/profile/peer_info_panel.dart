@@ -157,13 +157,11 @@ class _ProfilePhoto extends StatelessWidget {
     final avatar = SenderAvatar(name: name, size: 88, photo: photo);
     final onTap = this.onTap;
     if (onTap == null) return avatar;
-    return Semantics(
-      button: true,
-      label: name,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(onTap: onTap, child: avatar),
-      ),
+    return MgPressable(
+      onTap: onTap,
+      semanticsLabel: name,
+      focusRadius: 44,
+      builder: (context, _) => avatar,
     );
   }
 }
@@ -645,27 +643,21 @@ class _Pressable extends StatefulWidget {
 }
 
 class _PressableState extends State<_Pressable> {
-  var _hover = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    final enabled = widget.onTap != null;
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-      onEnter: enabled ? (_) => setState(() => _hover = true) : null,
-      onExit: enabled ? (_) => setState(() => _hover = false) : null,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        onSecondaryTapUp: widget.onMenu == null
-            ? null
-            : (details) => widget.onMenu!(details.globalPosition),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          color: _hover && enabled ? c.hover : const Color(0x00000000),
-          child: widget.child,
-        ),
+    return MgPressable(
+      onTap: widget.onTap,
+      onSecondaryTapUp: widget.onMenu == null
+          ? null
+          : (details) => widget.onMenu!(details.globalPosition),
+      scale: 1,
+      focusRadius: 0,
+      excludeSemantics: false,
+      builder: (context, state) => AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        color: state.hovered ? c.hover : const Color(0x00000000),
+        child: widget.child,
       ),
     );
   }
@@ -885,56 +877,46 @@ class _ActionTile extends StatefulWidget {
 }
 
 class _ActionTileState extends State<_ActionTile> {
-  var _hover = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return Semantics(
-      button: true,
-      label: widget.label,
-      excludeSemantics: true,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: () {
-            final menu = widget.onMenu;
-            if (menu == null) return widget.onTap?.call();
-            final box = context.findRenderObject()! as RenderBox;
-            menu(box.localToGlobal(Offset(0, box.size.height + 4)));
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            width: 88,
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            decoration: BoxDecoration(
-              color: Color.alphaBlend(
-                _hover ? c.hover : const Color(0x00000000),
-                c.field,
-              ),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                MgIcon(widget.icon, size: 18, color: c.accent),
-                const SizedBox(height: 4),
-                Text(
-                  widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: mgTextStyle(
-                    c,
-                    size: MgType.caption,
-                    color: c.accent,
-                    height: 1.2,
-                  ),
-                ),
-              ],
-            ),
+    return MgPressable(
+      semanticsLabel: widget.label,
+      focusRadius: 10,
+      onTap: () {
+        final menu = widget.onMenu;
+        if (menu == null) return widget.onTap?.call();
+        final box = context.findRenderObject()! as RenderBox;
+        menu(box.localToGlobal(Offset(0, box.size.height + 4)));
+      },
+      builder: (context, state) => AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        width: 88,
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(
+            state.hovered ? c.hover : const Color(0x00000000),
+            c.field,
           ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MgIcon(widget.icon, size: 18, color: c.accent),
+            const SizedBox(height: 4),
+            Text(
+              widget.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: mgTextStyle(
+                c,
+                size: MgType.caption,
+                color: c.accent,
+                height: 1.2,
+              ),
+            ),
+          ],
         ),
       ),
     );

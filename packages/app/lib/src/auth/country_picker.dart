@@ -68,7 +68,7 @@ class _CountryPickerState extends State<CountryPicker> {
                 )
               : ListView.builder(
                   itemCount: shown.length,
-                  itemExtent: 40,
+                  itemExtent: MgMetrics.scaled(context, 40),
                   itemBuilder: (context, i) =>
                       _CountryRow(shown[i], onTap: widget.onSelected),
                 ),
@@ -89,44 +89,36 @@ class _CountryRow extends StatefulWidget {
 }
 
 class _CountryRowState extends State<_CountryRow> {
-  bool _hover = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
     final country = widget.country;
-    return Semantics(
-      button: true,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: () => widget.onTap(country),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: _hover ? c.hover : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
+    return MgPressable(
+      onTap: () => widget.onTap(country),
+      scale: 1,
+      focusRadius: 8,
+      builder: (context, state) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: state.hovered ? c.hover : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                country.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: mgTextStyle(c, size: 14),
+              ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    country.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: mgTextStyle(c, size: 14),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '+${country.callingCodes.first}',
-                  style: mgTextStyle(c, size: 14, color: c.fg2),
-                ),
-              ],
+            const SizedBox(width: 12),
+            Text(
+              '+${country.callingCodes.first}',
+              style: mgTextStyle(c, size: 14, color: c.fg2),
             ),
-          ),
+          ],
         ),
       ),
     );

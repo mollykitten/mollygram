@@ -136,9 +136,6 @@ class _Key extends StatefulWidget {
 }
 
 class _KeyState extends State<_Key> {
-  var _hover = false;
-  var _down = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
@@ -152,63 +149,51 @@ class _KeyState extends State<_Key> {
       _ => (const Color(0x2E000000), c.fg),
     };
     final animate = !MediaQuery.disableAnimationsOf(context);
-    final pill = AnimatedContainer(
-      duration: Duration(milliseconds: animate ? 120 : 0),
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      transformAlignment: Alignment.center,
-      transform: Matrix4.diagonal3Values(_down ? 0.97 : 1, _down ? 0.97 : 1, 1),
-      decoration: BoxDecoration(
-        color: _hover && widget.enabled
-            ? Color.lerp(background, c.fg, 0.08)
-            : background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Flexible(
-            child: Text(
-              widget.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: mgTextStyle(
-                c,
-                weight: FontWeight.w500,
-                color: widget.enabled
-                    ? foreground
-                    : foreground.withValues(alpha: 0.5),
-              ),
-            ),
-          ),
-          if (widget.trailing case final trailing?)
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
+    return MgPressable(
+      onTap: widget.enabled ? widget.onPressed : null,
+      focusRadius: 8,
+      builder: (context, state) => AnimatedContainer(
+        duration: Duration(milliseconds: animate ? 120 : 0),
+        constraints: BoxConstraints(minHeight: MgMetrics.scaled(context, 32)),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: state.hovered
+              ? Color.lerp(background, c.fg, 0.08)
+              : background,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Flexible(
               child: Text(
-                trailing,
+                widget.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
                 style: mgTextStyle(
                   c,
-                  size: MgType.small,
-                  color: foreground.withValues(alpha: 0.7),
+                  weight: FontWeight.w500,
+                  color: widget.enabled
+                      ? foreground
+                      : foreground.withValues(alpha: 0.5),
                 ),
               ),
             ),
-        ],
-      ),
-    );
-    if (!widget.enabled) return pill;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = _down = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _down = true),
-        onTapCancel: () => setState(() => _down = false),
-        onTapUp: (_) => setState(() => _down = false),
-        onTap: widget.onPressed,
-        child: pill,
+            if (widget.trailing case final trailing?)
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Text(
+                  trailing,
+                  style: mgTextStyle(
+                    c,
+                    size: MgType.small,
+                    color: foreground.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -228,61 +213,48 @@ class BotMenuPill extends StatefulWidget {
 }
 
 class _BotMenuPillState extends State<BotMenuPill> {
-  var _hover = false;
-  var _down = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
     final animate = !MediaQuery.disableAnimationsOf(context);
     return Padding(
       padding: const EdgeInsets.only(right: 2, bottom: 3),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTapDown: (_) => setState(() => _down = true),
-          onTapUp: (_) => setState(() => _down = false),
-          onTapCancel: () => setState(() => _down = false),
-          onTap: widget.onPressed,
-          child: AnimatedContainer(
-            duration: Duration(milliseconds: animate ? 120 : 0),
-            height: 30,
-            constraints: const BoxConstraints(maxWidth: 140),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            alignment: Alignment.center,
-            transformAlignment: Alignment.center,
-            transform: Matrix4.diagonal3Values(
-              _down ? 0.96 : 1,
-              _down ? 0.96 : 1,
-              1,
-            ),
-            decoration: BoxDecoration(
-              color: _hover ? Color.lerp(c.accent, c.fg, 0.08) : c.accent,
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                MgIcon(MgIcons.list, size: 15, color: c.onAccent),
-                const SizedBox(width: 5),
-                Flexible(
-                  child: Text(
-                    widget.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: mgTextStyle(
-                      c,
-                      size: MgType.small,
-                      weight: MgWeight.medium,
-                      color: c.onAccent,
-                      height: 1.2,
-                    ),
+      child: MgPressable(
+        onTap: widget.onPressed,
+        scale: 0.96,
+        focusRadius: 15,
+        builder: (context, state) => AnimatedContainer(
+          duration: Duration(milliseconds: animate ? 120 : 0),
+          constraints: BoxConstraints(
+            minHeight: MgMetrics.scaled(context, 30),
+            maxWidth: 140,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: state.hovered ? Color.lerp(c.accent, c.fg, 0.08) : c.accent,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              MgIcon(MgIcons.list, size: 15, color: c.onAccent),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: mgTextStyle(
+                    c,
+                    size: MgType.small,
+                    weight: MgWeight.medium,
+                    color: c.onAccent,
+                    height: 1.2,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
