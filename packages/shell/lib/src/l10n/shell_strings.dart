@@ -27,6 +27,7 @@ abstract interface class ShellStrings {
   String get groupRecentSearches;
   String get groupTopPeers;
   String get loadingSuggestions;
+  String get searching;
   String get emptySuggestions;
   String get suggestionsFailed;
   String get recentUpdateFailed;
@@ -95,6 +96,8 @@ class _En implements ShellStrings {
   String get groupTopPeers => 'Top peers';
   @override
   String get loadingSuggestions => 'Loading suggestions…';
+  @override
+  String get searching => 'Searching…';
   @override
   String get emptySuggestions => 'No recent searches or top peers yet';
   @override
@@ -197,6 +200,8 @@ class _Ru implements ShellStrings {
   String get groupTopPeers => 'Частые контакты';
   @override
   String get loadingSuggestions => 'Загружаем подсказки…';
+  @override
+  String get searching => 'Ищем…';
   @override
   String get emptySuggestions => 'Пока нет недавних поисков и частых контактов';
   @override
