@@ -296,7 +296,6 @@ class _NewChatSheetState extends ConsumerState<NewChatSheet> {
   }
 
   Widget _members(AppLocalizations l10n) {
-    final c = MgColors.of(context);
     final query = _search.text.trim().toLowerCase();
     final contacts = [
       for (final user
@@ -320,12 +319,7 @@ class _NewChatSheetState extends ConsumerState<NewChatSheet> {
           const SizedBox(height: 6),
           Expanded(
             child: contacts.isEmpty
-                ? Center(
-                    child: Text(
-                      l10n.nothingFound,
-                      style: mgTextStyle(c, color: c.fg2),
-                    ),
-                  )
+                ? MgStatusView.empty(l10n.nothingFound)
                 : ListView.builder(
                     itemCount: contacts.length,
                     itemBuilder: (context, i) {

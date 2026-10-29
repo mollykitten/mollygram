@@ -13,7 +13,6 @@ import '../profile/manage_sheet.dart';
 import '../session/providers.dart';
 import '../shared_media/message_jump.dart';
 import 'describe.dart';
-import 'load_spinner.dart';
 import 'message_tile.dart' show SenderAvatar;
 import 'segmented_tabs.dart';
 
@@ -171,11 +170,13 @@ class _ResultsState extends ConsumerState<_Results> {
     final l10n = AppLocalizations.of(context);
     switch (_load) {
       case _Load.loading:
-        return const Center(child: LoadSpinner());
+        return const MgStatusView.loading(delay: Duration(milliseconds: 300));
       case _Load.failed:
-        return _Notice(l10n.hashtagFailed);
+        return MgStatusView.error(l10n.hashtagFailed);
       case _Load.ready:
-        if (_messages.isEmpty) return _Notice(l10n.hashtagEmpty(widget.tag));
+        if (_messages.isEmpty) {
+          return MgStatusView.empty(l10n.hashtagEmpty(widget.tag));
+        }
     }
     return ListView.builder(
       controller: _scroll,
@@ -189,24 +190,6 @@ class _ResultsState extends ConsumerState<_Results> {
           onTap: () => widget.onOpen(message),
         );
       },
-    );
-  }
-}
-
-class _Notice extends StatelessWidget {
-  const _Notice(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = MgColors.of(context);
-    return Center(
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: mgTextStyle(c, size: MgType.small, color: c.fg2),
-      ),
     );
   }
 }

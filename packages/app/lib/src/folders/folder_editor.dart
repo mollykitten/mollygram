@@ -306,13 +306,7 @@ class _FolderEditorState extends ConsumerState<FolderEditor> {
                                   label: l10n.tryAgain,
                                   onPressed: () => unawaited(_load()),
                                 )
-                              : SizedBox.square(
-                                  dimension: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 1.6,
-                                    color: c.fg2,
-                                  ),
-                                ),
+                              : const MgSpinner(),
                         )
                       : _body(context, draft),
                 ),
