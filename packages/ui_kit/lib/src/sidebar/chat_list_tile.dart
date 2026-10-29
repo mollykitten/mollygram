@@ -148,7 +148,16 @@ class ChatListTile extends StatefulWidget {
 
   /// [extent] for the density in [context]: compact rows are shorter.
   static double extentOf(BuildContext context) =>
-      _content + 2 * MgMetrics.of(context).rowPadding + 1;
+      _contentOf(context) + 2 * MgMetrics.of(context).rowPadding + 1;
+
+  /// The text lines grow with the text scale, so the row does too; the
+  /// avatar keeps its size, and at a scale of 1.0 this is [_content].
+  static double _contentOf(BuildContext context) => math.max(
+    avatarSize,
+    MgMetrics.scaled(context, _titleLine) +
+        1 +
+        2 * MgMetrics.scaled(context, _line),
+  );
 
   /// The online dot's green.
   static const Color onlineGreen = Color(0xFF34C759);
@@ -283,7 +292,10 @@ class _ChatListTileState extends State<ChatListTile> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(
-                          height: ChatListTile._titleLine,
+                          height: MgMetrics.scaled(
+                            context,
+                            ChatListTile._titleLine,
+                          ),
                           child: Row(
                             children: [
                               if (kindIcon != null) ...[
@@ -366,7 +378,12 @@ class _ChatListTileState extends State<ChatListTile> {
                           children: [
                             Expanded(
                               child: SizedBox(
-                                height: 2 * ChatListTile._line,
+                                height:
+                                    2 *
+                                    MgMetrics.scaled(
+                                      context,
+                                      ChatListTile._line,
+                                    ),
                                 child: Align(
                                   alignment: Alignment.topLeft,
                                   child: _preview(c, on),
@@ -456,7 +473,7 @@ class _ChatListTileState extends State<ChatListTile> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: ChatListTile._line,
+          height: MgMetrics.scaled(context, ChatListTile._line),
           child: Row(
             children: [
               if (senderAvatar != null) ...[

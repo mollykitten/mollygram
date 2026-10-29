@@ -473,7 +473,7 @@ class SettingsButton extends StatelessWidget {
         opacity: enabled ? 1 : 0.45,
         child: AnimatedContainer(
           duration: state.pressed ? MgMotion.press : MgMotion.fast,
-          height: 24,
+          constraints: BoxConstraints(minHeight: MgMetrics.scaled(context, 24)),
           padding: const EdgeInsets.symmetric(horizontal: 11),
           decoration: BoxDecoration(
             color: state.pressed
@@ -481,11 +481,12 @@ class SettingsButton extends StatelessWidget {
                 : state.hovered
                 ? Color.alphaBlend(c.hover, c.field)
                 : c.field,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(MgRadius.small),
             border: Border.all(color: s.groupBorder, width: 0.5),
           ),
           child: Center(
             widthFactor: 1,
+            heightFactor: 1,
             child: Text(
               label,
               maxLines: 1,

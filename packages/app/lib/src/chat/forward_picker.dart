@@ -119,7 +119,7 @@ class _ForwardPickerState extends ConsumerState<_ForwardPicker> {
   /// Scrolls by the least that shows the cursor's row whole.
   void _reveal() {
     if (!_scroll.hasClients) return;
-    const extent = _ForwardRow.extent;
+    final extent = _ForwardRow.extentOf(context);
     final top = _cursor * extent;
     final position = _scroll.position;
     final target = top < position.pixels
@@ -307,7 +307,7 @@ class _ForwardPickerState extends ConsumerState<_ForwardPicker> {
                   )
                 : ListView.builder(
                     controller: _scroll,
-                    itemExtent: _ForwardRow.extent,
+                    itemExtent: _ForwardRow.extentOf(context),
                     itemCount: matches.length,
                     itemBuilder: (context, i) {
                       final chat = matches[i];
@@ -419,6 +419,11 @@ class _ForwardRow extends StatefulWidget {
   });
 
   static const double extent = 46;
+
+  /// [extent] grown with the text scale: the row's two lines must fit.
+  static double extentOf(BuildContext context) =>
+      MgMetrics.scaled(context, extent);
+
   static const double avatarSize = 34;
 
   final String title;
