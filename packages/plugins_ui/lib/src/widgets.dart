@@ -4,7 +4,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:mollygram_ui_kit/mollygram_ui_kit.dart'
+    show MgColors, MgMotion, MgPressable, MgPressableRole, MgType;
+
 import 'colors.dart';
+import 'scope.dart';
 import 'strings.dart';
 
 const monoFamily = 'Menlo';
@@ -100,7 +104,7 @@ class Glass extends StatelessWidget {
             blurRadius: 34,
             offset: const Offset(0, 12),
           ),
-          const BoxShadow(color: Color(0x0F000000), spreadRadius: .5),
+          BoxShadow(color: c.sep, spreadRadius: .5),
         ],
       ),
       child: ClipRRect(
@@ -147,8 +151,8 @@ class Glass extends StatelessWidget {
   }
 }
 
-/// Scales to 0.97 while pressed and shows a hover fill, like `.press`.
-class Pressable extends StatefulWidget {
+/// The screen's pressable: an [MgPressable] with an optional hover fill.
+class Pressable extends StatelessWidget {
   const Pressable({
     super.key,
     required this.onTap,
@@ -156,7 +160,8 @@ class Pressable extends StatefulWidget {
     this.label,
     this.hover,
     this.radius = 8,
-    this.button = true,
+    this.selected,
+    this.toggled,
   });
 
   final VoidCallback? onTap;
@@ -166,57 +171,32 @@ class Pressable extends StatefulWidget {
   /// The fill under the pointer; null for none.
   final Color? hover;
   final double radius;
-  final bool button;
+
+  /// Whether this is the current one of a list; null when it has no such
+  /// state.
+  final bool? selected;
+
+  /// A switch's state; null for a plain button.
+  final bool? toggled;
 
   @override
-  State<Pressable> createState() => _PressableState();
-}
-
-class _PressableState extends State<Pressable> {
-  var _down = false;
-  var _over = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = widget.onTap != null;
-    return Semantics(
-      button: widget.button,
-      enabled: enabled,
-      label: widget.label,
-      child: FocusableActionDetector(
-        enabled: enabled,
-        mouseCursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-        onShowHoverHighlight: (v) => setState(() => _over = v),
-        actions: {
-          ActivateIntent: CallbackAction<ActivateIntent>(
-            onInvoke: (_) => widget.onTap?.call(),
-          ),
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: enabled ? (_) => setState(() => _down = true) : null,
-          onTapCancel: () => setState(() => _down = false),
-          onTapUp: (_) => setState(() => _down = false),
-          onTap: widget.onTap,
-          child: AnimatedScale(
-            scale: _down ? .97 : 1,
-            duration: const Duration(milliseconds: 120),
-            curve: _ease,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              decoration: BoxDecoration(
-                color: _over && widget.hover != null
-                    ? widget.hover
-                    : const Color(0x00000000),
-                borderRadius: BorderRadius.circular(widget.radius),
-              ),
-              child: widget.child,
-            ),
-          ),
-        ),
+  Widget build(BuildContext context) => MgPressable(
+    onTap: onTap,
+    semanticsLabel: label,
+    focusRadius: radius,
+    selected: selected,
+    toggled: toggled,
+    role: toggled == null ? MgPressableRole.button : MgPressableRole.toggle,
+    builder: (context, st) => AnimatedContainer(
+      duration: MgMotion.fast,
+      curve: MgMotion.standardCurve,
+      decoration: BoxDecoration(
+        color: st.hovered && hover != null ? hover : const Color(0x00000000),
+        borderRadius: BorderRadius.circular(radius),
       ),
-    );
-  }
+      child: child,
+    ),
+  );
 }
 
 /// A macOS switch, 34×20.
@@ -235,40 +215,37 @@ class MgSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = PluginsColors.of(context);
-    return Semantics(
+    return Pressable(
       toggled: value,
       label: label,
-      child: Pressable(
-        button: false,
-        radius: 10,
-        onTap: onChanged == null ? null : () => onChanged!(!value),
-        child: AnimatedContainer(
+      radius: 10,
+      onTap: onChanged == null ? null : () => onChanged!(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 34,
+        height: 20,
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: value ? c.accent : c.off,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: AnimatedAlign(
           duration: const Duration(milliseconds: 180),
-          width: 34,
-          height: 20,
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            color: value ? c.accent : c.off,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: AnimatedAlign(
-            duration: const Duration(milliseconds: 180),
-            curve: _ease,
-            alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-            child: Container(
-              width: 16,
-              height: 16,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFFFFF),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0x40000000),
-                    blurRadius: 2,
-                    offset: Offset(0, 1),
-                  ),
-                ],
-              ),
+          curve: _ease,
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              color: c.onAccent,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: c.shadow,
+                  blurRadius: 2,
+                  offset: const Offset(0, 1),
+                ),
+              ],
             ),
           ),
         ),
@@ -303,7 +280,7 @@ class MgButton extends StatelessWidget {
         ? const Color(0x00000000)
         : c.field;
     final fg = primary
-        ? const Color(0xFFFFFFFF)
+        ? c.onAccent
         : danger
         ? PluginsColors.danger
         : c.fg;
@@ -312,7 +289,7 @@ class MgButton extends StatelessWidget {
       label: label,
       radius: 7,
       child: Container(
-        height: 28,
+        constraints: BoxConstraints(minHeight: pluginsScaled(context, 28)),
         width: expand ? double.infinity : null,
         alignment: Alignment.center,
         padding: EdgeInsets.symmetric(horizontal: danger ? 0 : 14),
@@ -323,11 +300,7 @@ class MgButton extends StatelessWidget {
         child: Text(
           label,
           maxLines: 1,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: fg,
-          ),
+          style: pluginsText(context, weight: FontWeight.w500, color: fg),
         ),
       ),
     );
@@ -359,10 +332,14 @@ class PluginIcon extends StatelessWidget {
       ),
       child: Text(
         glyph,
-        style: TextStyle(
-          color: const Color(0xFFFFFFFF),
-          fontWeight: FontWeight.w700,
-          fontSize: size * .45,
+        // The glyph sits in a box of fixed size: it keeps its size with the
+        // text scale.
+        textScaler: TextScaler.noScaling,
+        style: pluginsText(
+          context,
+          size: size * .45,
+          weight: FontWeight.w700,
+          color: MgColors.of(context).onAccent,
           height: 1,
         ),
       ),
@@ -397,7 +374,9 @@ class Group extends StatelessWidget {
                     : Border(top: BorderSide(color: c.sep, width: .5)),
               ),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 44),
+                constraints: BoxConstraints(
+                  minHeight: pluginsScaled(context, 44),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -429,9 +408,10 @@ class Caption extends StatelessWidget {
       header: true,
       child: Text(
         text,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
+        style: pluginsText(
+          context,
+          size: MgType.caption,
+          weight: FontWeight.w600,
           color: PluginsColors.of(context).fg2,
         ),
       ),
@@ -498,15 +478,15 @@ class _MgTextFieldState extends State<MgTextField> {
   @override
   Widget build(BuildContext context) {
     final c = PluginsColors.of(context);
-    final style = DefaultTextStyle.of(context).style
-        .copyWith(fontSize: 13, color: c.fg);
+    final style = pluginsText(context);
     return Semantics(
       textField: true,
       label: widget.semanticLabel ?? widget.placeholder,
       child: GestureDetector(
         onTap: _focus.requestFocus,
         child: Container(
-          height: 28,
+          alignment: Alignment.centerLeft,
+          constraints: BoxConstraints(minHeight: pluginsScaled(context, 28)),
           padding: const EdgeInsets.symmetric(horizontal: 9),
           decoration: BoxDecoration(
             color: c.field,
@@ -631,7 +611,7 @@ class _MgSelectState extends State<MgSelect> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(_current, style: TextStyle(color: c.fg2)),
+                Text(_current, style: pluginsText(context, color: c.fg2)),
                 const SizedBox(width: 4),
                 CustomPaint(
                   size: const Size(9, 12),
@@ -675,9 +655,7 @@ class _Menu extends StatelessWidget {
             boxShadow: [
               BoxShadow(color: c.sep, spreadRadius: .5),
               BoxShadow(
-                color: c.dark
-                    ? const Color(0x73000000)
-                    : const Color(0x24000000),
+                color: c.shadow,
                 blurRadius: 24,
                 offset: const Offset(0, 6),
               ),
@@ -707,7 +685,7 @@ class _Menu extends StatelessWidget {
                                     )
                                   : null,
                             ),
-                            Text(o.label),
+                            Text(o.label, style: pluginsText(context)),
                           ],
                         ),
                       ),

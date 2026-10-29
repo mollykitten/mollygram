@@ -10,6 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  mollygram_ui_kit: any
   plugin_host: any
 
 dev_dependencies:

@@ -1,8 +1,11 @@
 import 'package:flutter/widgets.dart';
+import 'package:mollygram_ui_kit/mollygram_ui_kit.dart' show MgColors;
 
-/// Colors of design/Plugins.dc.html (the `.app` and `.app.dark` variables).
+/// The colors of the plugins screen, derived from the app's [MgColors].
 ///
-/// Local to this screen until the shared theme lands in ui_kit.
+/// Only the screen's own tokens (the pane, the off switch, the code block)
+/// are defined here; everything shared comes from [MgColors], so the screen
+/// follows the app theme. Read them with [PluginsColors.of].
 @immutable
 class PluginsColors {
   const PluginsColors._({
@@ -13,6 +16,8 @@ class PluginsColors {
     required this.fg2,
     required this.sep,
     required this.accent,
+    required this.onAccent,
+    required this.onAccentSecondary,
     required this.hover,
     required this.field,
     required this.off,
@@ -26,6 +31,40 @@ class PluginsColors {
     required this.wall,
   });
 
+  /// The screen's colors for [mg].
+  factory PluginsColors.from(MgColors mg) {
+    final dark = mg.isDark;
+    return PluginsColors._(
+      dark: dark,
+      pane: dark ? mg.windowBackground : _paneLight,
+      surface: mg.bubbleIn,
+      fg: mg.fg,
+      fg2: mg.fg2,
+      sep: mg.separator,
+      accent: mg.accent,
+      onAccent: mg.onAccent,
+      onAccentSecondary: mg.onAccentSecondary,
+      hover: mg.hover,
+      field: mg.field,
+      off: dark ? _offDark : _offLight,
+      code: dark ? _codeDark : _codeLight,
+      glass: mg.glass,
+      rim: mg.rim,
+      hi: mg.highlight,
+      glow: mg.glow,
+      shadow: mg.shadow,
+      wallBase: mg.wallpaperBase,
+      wall: mg.wallpaper,
+    );
+  }
+
+  // The tokens MgColors has no counterpart for.
+  static const _paneLight = Color(0xFFF5F5F7);
+  static const _offLight = Color(0xFFD9D9DE);
+  static const _offDark = Color(0xFF48484C);
+  static const _codeLight = Color(0xFFF0F0F3);
+  static const _codeDark = Color(0xFF232326);
+
   final bool dark;
   final Color pane;
   final Color surface;
@@ -33,6 +72,10 @@ class PluginsColors {
   final Color fg2;
   final Color sep;
   final Color accent;
+
+  /// Text and glyphs on top of [accent].
+  final Color onAccent;
+  final Color onAccentSecondary;
   final Color hover;
   final Color field;
 
@@ -52,61 +95,16 @@ class PluginsColors {
   static const danger = Color(0xFFE5484D);
   static const warning = Color(0xFFFF9F0A);
 
-  static const light = PluginsColors._(
-    dark: false,
-    pane: Color(0xFFF5F5F7),
-    surface: Color(0xFFFFFFFF),
-    fg: Color(0xFF1D1D1F),
-    fg2: Color(0xFF6E6E73),
-    sep: Color(0x14000000),
-    accent: Color(0xFF0071E3),
-    hover: Color(0x0D000000),
-    field: Color(0x0E000000),
-    off: Color(0xFFD9D9DE),
-    code: Color(0xFFF0F0F3),
-    glass: Color(0x6BFFFFFF),
-    rim: Color(0x99FFFFFF),
-    hi: Color(0xF2FFFFFF),
-    glow: Color(0x59FFFFFF),
-    shadow: Color(0x291E3214),
-    wallBase: Color(0xFFB5C99E),
-    wall: [
-      Color(0xFFDBDDBB),
-      Color(0xFF6BA587),
-      Color(0xFFD5D88D),
-      Color(0xFF88B884),
-    ],
-  );
+  /// Behind a sheet over the screen.
+  static const scrim = Color(0x14000000);
 
-  static const darkColors = PluginsColors._(
-    dark: true,
-    pane: Color(0xFF1C1C1E),
-    surface: Color(0xFF2A2A2D),
-    fg: Color(0xFFF5F5F7),
-    fg2: Color(0xFFA1A1A6),
-    sep: Color(0x17FFFFFF),
-    accent: Color(0xFF0A84FF),
-    hover: Color(0x0FFFFFFF),
-    field: Color(0x12FFFFFF),
-    off: Color(0xFF48484C),
-    code: Color(0xFF232326),
-    glass: Color(0x6B1C1E22),
-    rim: Color(0x24FFFFFF),
-    hi: Color(0x38FFFFFF),
-    glow: Color(0x0AFFFFFF),
-    shadow: Color(0x73000000),
-    wallBase: Color(0xFF1A2A35),
-    wall: [
-      Color(0xFF2D4A5C),
-      Color(0xFF1C3442),
-      Color(0xFF3B5465),
-      Color(0xFF203845),
-    ],
-  );
+  static final _fallback = PluginsColors.from(MgColors.light);
 
+  /// The colors of the nearest [PluginsThemeScope]; the light ones without
+  /// one.
   static PluginsColors of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<PluginsTheme>()?.colors ??
-      light;
+      _fallback;
 }
 
 /// Provides [PluginsColors] to the screen's widgets.

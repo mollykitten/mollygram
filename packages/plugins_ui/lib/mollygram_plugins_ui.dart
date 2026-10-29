@@ -6,6 +6,7 @@ export 'src/builtin.dart';
 export 'src/colors.dart' show PluginsColors, PluginsTheme;
 export 'src/controller.dart';
 export 'src/mock.dart';
+export 'src/scope.dart' show PluginsThemeScope;
 export 'src/screen.dart';
 export 'src/strings.dart'
     show AccessIcon, AccessRow, PluginTexts, PluginsStrings;
