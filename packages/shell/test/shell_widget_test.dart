@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -40,6 +42,52 @@ void main() {
       ),
     );
   }
+
+  testWidgets('earlier results stay while a search runs and cannot be opened', (
+    tester,
+  ) async {
+    final slow = _SlowDirectory();
+    final opened = <ChatId>[];
+    await tester.pumpWidget(
+      WidgetsApp(
+        color: const Color(0xFF0071E3),
+        debugShowCheckedModeBanner: false,
+        builder: (context, _) => DefaultTextStyle(
+          style: const TextStyle(fontSize: 13, color: Color(0xFF000000)),
+          child: CommandPalette(
+            directory: slow,
+            commands: const [],
+            strings: ShellStrings.en,
+            initialQuery: 'ann',
+            onOpenChat: (chat, _) => opened.add(chat),
+            onClose: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    final first = slow.inner.chat(slow.firstId)!.title;
+    expect(find.textContaining(first), findsWidgets);
+
+    slow.hold = Completer<void>();
+    await tester.enterText(find.byType(EditableText), 'anna');
+    await tester.pump();
+    expect(find.text(ShellStrings.en.searching), findsOneWidget);
+    expect(find.textContaining(first), findsWidgets);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(opened, isEmpty);
+
+    slow.hold!.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(ShellStrings.en.searching), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(opened, isNotEmpty);
+  });
 
   Future<void> primary(WidgetTester tester, LogicalKeyboardKey key) async {
     final mod = usesCommandKey
@@ -468,4 +516,27 @@ class _RenamingDirectory extends ChangeNotifier implements ChatDirectory {
   @override
   Future<List<MessageHit>> searchMessages(String query, {int limit = 8}) =>
       _inner.searchMessages(query, limit: limit);
+}
+
+class _SlowDirectory extends ChangeNotifier implements ChatDirectory {
+  final inner = MockChatDirectory();
+  Completer<void>? hold;
+  ChatId get firstId => inner.recentChats().first.id;
+
+  @override
+  ChatSummary? chat(ChatId id) => inner.chat(id);
+
+  @override
+  List<ChatSummary> recentChats({int limit = 5}) =>
+      inner.recentChats(limit: limit);
+
+  @override
+  Future<List<ChatSummary>> searchChats(String query, {int limit = 8}) async {
+    await hold?.future;
+    return inner.searchChats(query, limit: limit);
+  }
+
+  @override
+  Future<List<MessageHit>> searchMessages(String query, {int limit = 8}) =>
+      inner.searchMessages(query, limit: limit);
 }
