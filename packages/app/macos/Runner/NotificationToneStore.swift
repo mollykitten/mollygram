@@ -15,6 +15,17 @@ final class NotificationToneStore {
   init(directory: URL = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
     .appendingPathComponent("Sounds", isDirectory: true)) {
     self.directory = directory
+    removeStaleTones()
+  }
+
+  /// Files left behind by a crash or a missed `release`; this process owns
+  /// every `mollygram-tone-*.caf` in its directory.
+  private func removeStaleTones() {
+    let manager = FileManager.default
+    guard let names = try? manager.contentsOfDirectory(atPath: directory.path) else { return }
+    for name in names where name.hasPrefix("mollygram-tone-") && name.hasSuffix(".caf") {
+      try? manager.removeItem(at: directory.appendingPathComponent(name))
+    }
   }
 
   func notificationSound(_ args: [String: Any]) throws -> UNNotificationSound? {

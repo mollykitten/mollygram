@@ -324,6 +324,51 @@ void main() {
     },
   );
 
+  test(
+    'a tone that never downloads delays neither later banners nor a sync',
+    () async {
+      json.hold = true;
+      final system = _System();
+      final service = _service(controller, system);
+      await service.start(en);
+      json.pushGroup(42);
+      await json.requested.future;
+      json.pushGroup(42, silent: true, notificationId: 2);
+      await _until(() => system.shown.length == 1);
+      expect(system.shown.single.messageId, 2);
+      json.push({'@type': 'updateActiveNotifications', 'groups': []});
+      await _until(() => system.retained.isNotEmpty);
+      // The held notification was cancelled by the sync, not shown late.
+      json.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(system.shown, hasLength(1));
+    },
+  );
+
+  test(
+    'an edit while the show waits in the queue keeps the first alert',
+    () async {
+      final system = _System()..showGate = Completer<void>();
+      final service = _service(controller, system);
+      await service.start(en);
+      json.pushGroup(42, silent: true);
+      await _until(() => system.shown.length == 1);
+      // Notification 1 blocks the queue, so notification 2 waits behind it.
+      json.pushGroup(42, notificationId: 2);
+      await json.requested.future;
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      json.pushEdit(id: 2, text: 'edited');
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      system.showGate!.complete();
+      await _until(() => system.shown.length == 2);
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(system.shown, hasLength(2));
+      expect(system.shown.last.quiet, isFalse);
+      expect(system.shown.last.sound, isTrue);
+      expect(system.shown.last.body, contains('edited'));
+    },
+  );
+
   test('disposed account cannot post a delayed custom tone', () async {
     json.hold = true;
     final system = _System();
@@ -370,6 +415,7 @@ Future<void> _until(bool Function() ready) async {
 
 final class _System implements SystemNotifications {
   final shown = <SystemNotification>[];
+  final retained = <Set<String>>[];
   Completer<void>? showGate;
   @override
   Stream<NotificationResponse> get responses => const Stream.empty();
@@ -389,7 +435,7 @@ final class _System implements SystemNotifications {
   @override
   Future<void> remove(List<String> ids) async {}
   @override
-  Future<void> retain(Set<String> ids) async {}
+  Future<void> retain(Set<String> ids) async => retained.add(ids);
   @override
   Future<void> setBadge(String? label) async {}
   @override
@@ -511,9 +557,9 @@ final class _Json implements td.TdJson {
         'added_notifications': [notification(notificationId, silent)],
         'removed_notification_ids': [],
       });
-  void pushEdit({String text = 'edited'}) => push({
+  void pushEdit({String text = 'edited', int id = 1}) => push({
     '@type': 'updateNotification',
     'notification_group_id': 1,
-    'notification': notification(1, false, text: text),
+    'notification': notification(id, false, text: text),
   });
 }
