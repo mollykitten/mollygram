@@ -138,6 +138,9 @@ const _stickerSide = 1024;
 
 const _ease = Cubic(0.2, 0.8, 0.2, 1);
 
+/// The least height the picture keeps whatever the text size.
+const _minStage = 160.0;
+
 class _MediaEditorPageState extends State<MediaEditorPage>
     with TickerProviderStateMixin {
   ui.Image? _image;
@@ -379,7 +382,10 @@ class _MediaEditorPageState extends State<MediaEditorPage>
     });
     if (_tool == EditorTool.text) {
       if (_edit.overlay(_selected) is! TextOverlay) _addText();
-      _textFocus.requestFocus();
+      // The panel is still excluded from focus until it is rebuilt visible.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _tool == EditorTool.text) _textFocus.requestFocus();
+      });
     } else if (_tool == EditorTool.shapes) {
       if (_edit.overlay(_selected) is! ShapeOverlay) _select(null);
     } else if (_tool == EditorTool.stickers) {
@@ -1010,116 +1016,128 @@ class _MediaEditorPageState extends State<MediaEditorPage>
         const SingleActivator(LogicalKeyboardKey.delete): _deleteSelected,
         const SingleActivator(LogicalKeyboardKey.backspace): _deleteSelected,
       },
-      child: Focus(
-        autofocus: true,
-        child: Material(
-          type: MaterialType.transparency,
-          child: Stack(
-            children: [
-              Positioned.fill(child: EditorBackdrop(colors: c)),
-              Positioned.fill(
-                child: AnimatedPadding(
-                  duration: const Duration(milliseconds: 260),
-                  curve: _ease,
-                  // The adjust panel has two rows, so the stage gives way.
-                  padding: EdgeInsets.fromLTRB(
-                    32,
-                    32,
-                    32,
-                    _tool == EditorTool.adjust ? 170 : 132,
+      child: FocusTraversalGroup(
+        policy: OrderedTraversalPolicy(),
+        child: FocusScope(
+          autofocus: true,
+          child: Material(
+            type: MaterialType.transparency,
+            child: Stack(
+              children: [
+                Positioned.fill(child: EditorBackdrop(colors: c)),
+                Positioned.fill(
+                  child: LayoutBuilder(
+                    builder: (context, box) {
+                      // The adjust panel has two rows, so the stage gives way;
+                      // larger text makes the panels taller, but the stage
+                      // keeps a workable minimum.
+                      final wanted = MgMetrics.scaled(
+                        context,
+                        _tool == EditorTool.adjust ? 170 : 132,
+                      );
+                      final bottom = math.min(
+                        wanted,
+                        math.max(0.0, box.maxHeight - 32 - _minStage),
+                      );
+                      return AnimatedPadding(
+                        duration: const Duration(milliseconds: 260),
+                        curve: _ease,
+                        padding: EdgeInsets.fromLTRB(32, 32, 32, bottom),
+                        child: _buildStage(context),
+                      );
+                    },
                   ),
-                  child: _buildStage(context),
                 ),
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 20,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // The panels sit on top of each other: only the
-                    // current tool's one is visible.
-                    Stack(
-                      alignment: Alignment.bottomCenter,
-                      children: [
-                        _ToolPanel(
-                          visible: _tool == EditorTool.crop,
-                          child: _cropPanel(s),
-                        ),
-                        _ToolPanel(
-                          visible: _tool == EditorTool.draw,
-                          child: DrawPanel(
-                            brush: _brush,
-                            color: _color,
-                            thickness: _thickness,
-                            onBrush: _setBrush,
-                            onColor: _setColor,
-                            onThickness: _setThickness,
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 20,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // The panels sit on top of each other: only the
+                      // current tool's one is visible.
+                      Stack(
+                        alignment: Alignment.bottomCenter,
+                        children: [
+                          _ToolPanel(
+                            visible: _tool == EditorTool.crop,
+                            child: _cropPanel(s),
                           ),
-                        ),
-                        _ToolPanel(
-                          visible: _tool == EditorTool.text,
-                          child: TextPanel(
-                            controller: _text,
-                            focusNode: _textFocus,
-                            overlay: _selectedOverlay is TextOverlay
-                                ? _selectedOverlay! as TextOverlay
-                                : null,
-                            onLook: _setTextLook,
-                            onColor: _setTextColor,
-                            onScale: _setTextScale,
+                          _ToolPanel(
+                            visible: _tool == EditorTool.draw,
+                            child: DrawPanel(
+                              brush: _brush,
+                              color: _color,
+                              thickness: _thickness,
+                              onBrush: _setBrush,
+                              onColor: _setColor,
+                              onThickness: _setThickness,
+                            ),
                           ),
-                        ),
-                        _ToolPanel(
-                          visible: _tool == EditorTool.emoji,
-                          child: EmojiGridPanel(onEmoji: _addEmoji),
-                        ),
-                        _ToolPanel(
-                          visible: _tool == EditorTool.stickers,
-                          child: StickerPanel(
-                            overlay: _selectedOverlay is ImageOverlay
-                                ? _selectedOverlay! as ImageOverlay
-                                : null,
-                            onAdd: _pickSticker,
-                            onScale: _setStickerScale,
-                            onScaleEnd: _endLive,
+                          _ToolPanel(
+                            visible: _tool == EditorTool.text,
+                            child: TextPanel(
+                              controller: _text,
+                              focusNode: _textFocus,
+                              overlay: _selectedOverlay is TextOverlay
+                                  ? _selectedOverlay! as TextOverlay
+                                  : null,
+                              onLook: _setTextLook,
+                              onColor: _setTextColor,
+                              onScale: _setTextScale,
+                            ),
                           ),
-                        ),
-                        _ToolPanel(
-                          visible: _tool == EditorTool.adjust,
-                          child: AdjustPanel(
-                            values: _edit.adjustments,
-                            selected: _adjustment,
-                            onPreset: _setPreset,
-                            onSelect: (a) => setState(() => _adjustment = a),
-                            onChanged: _setAdjustment,
-                            onChangeStart: _beginLive,
-                            onChangeEnd: _endLive,
+                          _ToolPanel(
+                            visible: _tool == EditorTool.emoji,
+                            child: EmojiGridPanel(onEmoji: _addEmoji),
                           ),
-                        ),
-                        _ToolPanel(
-                          visible: _tool == EditorTool.shapes,
-                          child: ShapePanel(
-                            overlay: _selectedOverlay is ShapeOverlay
-                                ? _selectedOverlay! as ShapeOverlay
-                                : null,
-                            color: _shapeColor,
-                            thickness: _shapeThickness,
-                            onAdd: _addShape,
-                            onColor: _setShapeColor,
-                            onFilled: _setShapeFilled,
-                            onThickness: _setShapeThickness,
+                          _ToolPanel(
+                            visible: _tool == EditorTool.stickers,
+                            child: StickerPanel(
+                              overlay: _selectedOverlay is ImageOverlay
+                                  ? _selectedOverlay! as ImageOverlay
+                                  : null,
+                              onAdd: _pickSticker,
+                              onScale: _setStickerScale,
+                              onScaleEnd: _endLive,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    _mainBar(c, s),
-                  ],
+                          _ToolPanel(
+                            visible: _tool == EditorTool.adjust,
+                            child: AdjustPanel(
+                              values: _edit.adjustments,
+                              selected: _adjustment,
+                              onPreset: _setPreset,
+                              onSelect: (a) => setState(() => _adjustment = a),
+                              onChanged: _setAdjustment,
+                              onChangeStart: _beginLive,
+                              onChangeEnd: _endLive,
+                            ),
+                          ),
+                          _ToolPanel(
+                            visible: _tool == EditorTool.shapes,
+                            child: ShapePanel(
+                              overlay: _selectedOverlay is ShapeOverlay
+                                  ? _selectedOverlay! as ShapeOverlay
+                                  : null,
+                              color: _shapeColor,
+                              thickness: _shapeThickness,
+                              onAdd: _addShape,
+                              onColor: _setShapeColor,
+                              onFilled: _setShapeFilled,
+                              onThickness: _setShapeThickness,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _mainBar(c, s),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1226,88 +1244,130 @@ class _MediaEditorPageState extends State<MediaEditorPage>
     return Glass(
       radius: 22,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: SizedBox(
-        width: 560,
-        child: Row(
-          children: [
-            const SizedBox(width: 4),
-            MgTextButton(label: s.cancel, onPressed: _saving ? null : _cancel),
-            const Spacer(),
-            MgIconButton(
-              icon: EditorIcons.undo,
-              tooltip: s.undo,
-              onPressed: ready && _undo.isNotEmpty ? _undoEdit : null,
-            ),
-            MgIconButton(
-              icon: EditorIcons.redo,
-              tooltip: s.redo,
-              onPressed: ready && _redo.isNotEmpty ? _redoEdit : null,
-            ),
-            const EditorDivider(),
-            MgIconButton(
-              icon: EditorIcons.crop,
-              tooltip: s.crop,
-              selected: _tool == EditorTool.crop,
-              toggle: true,
-              onPressed: ready ? () => _setTool(EditorTool.crop) : null,
-            ),
-            MgIconButton(
-              icon: EditorIcons.pen,
-              tooltip: s.draw,
-              selected: _tool == EditorTool.draw,
-              toggle: true,
-              onPressed: ready ? () => _setTool(EditorTool.draw) : null,
-            ),
-            MgIconButton(
-              icon: EditorIcons.text,
-              tooltip: s.text,
-              selected: _tool == EditorTool.text,
-              toggle: true,
-              onPressed: ready ? () => _setTool(EditorTool.text) : null,
-            ),
-            MgIconButton(
-              icon: EditorIcons.emoji,
-              tooltip: s.emoji,
-              selected: _tool == EditorTool.emoji,
-              toggle: true,
-              onPressed: ready ? () => _setTool(EditorTool.emoji) : null,
-            ),
-            if (widget.stickerPicker != null)
-              MgIconButton(
-                icon: MgIcons.sticker,
-                tooltip: s.stickers,
-                selected: _tool == EditorTool.stickers,
-                toggle: true,
-                onPressed: ready ? () => _setTool(EditorTool.stickers) : null,
+      child: LayoutBuilder(
+        builder: (context, box) => SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: math.min(560, box.maxWidth)),
+            child: IntrinsicWidth(
+              child: Row(
+                children: [
+                  const SizedBox(width: 4),
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(3),
+                    child: MgTextButton(
+                      label: s.cancel,
+                      onPressed: _saving ? null : _cancel,
+                    ),
+                  ),
+                  const Spacer(),
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(1),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        MgIconButton(
+                          icon: EditorIcons.undo,
+                          tooltip: s.undo,
+                          onPressed: ready && _undo.isNotEmpty
+                              ? _undoEdit
+                              : null,
+                        ),
+                        MgIconButton(
+                          icon: EditorIcons.redo,
+                          tooltip: s.redo,
+                          onPressed: ready && _redo.isNotEmpty
+                              ? _redoEdit
+                              : null,
+                        ),
+                        const EditorDivider(),
+                        MgIconButton(
+                          icon: EditorIcons.crop,
+                          tooltip: s.crop,
+                          selected: _tool == EditorTool.crop,
+                          toggle: true,
+                          onPressed: ready
+                              ? () => _setTool(EditorTool.crop)
+                              : null,
+                        ),
+                        MgIconButton(
+                          icon: EditorIcons.pen,
+                          tooltip: s.draw,
+                          selected: _tool == EditorTool.draw,
+                          toggle: true,
+                          onPressed: ready
+                              ? () => _setTool(EditorTool.draw)
+                              : null,
+                        ),
+                        MgIconButton(
+                          icon: EditorIcons.text,
+                          tooltip: s.text,
+                          selected: _tool == EditorTool.text,
+                          toggle: true,
+                          onPressed: ready
+                              ? () => _setTool(EditorTool.text)
+                              : null,
+                        ),
+                        MgIconButton(
+                          icon: EditorIcons.emoji,
+                          tooltip: s.emoji,
+                          selected: _tool == EditorTool.emoji,
+                          toggle: true,
+                          onPressed: ready
+                              ? () => _setTool(EditorTool.emoji)
+                              : null,
+                        ),
+                        if (widget.stickerPicker != null)
+                          MgIconButton(
+                            icon: MgIcons.sticker,
+                            tooltip: s.stickers,
+                            selected: _tool == EditorTool.stickers,
+                            toggle: true,
+                            onPressed: ready
+                                ? () => _setTool(EditorTool.stickers)
+                                : null,
+                          ),
+                        MgIconButton(
+                          icon: EditorIcons.shapes,
+                          tooltip: s.shapes,
+                          selected: _tool == EditorTool.shapes,
+                          toggle: true,
+                          onPressed: ready
+                              ? () => _setTool(EditorTool.shapes)
+                              : null,
+                        ),
+                        MgIconButton(
+                          icon: EditorIcons.adjust,
+                          tooltip: s.adjust,
+                          selected: _tool == EditorTool.adjust,
+                          toggle: true,
+                          onPressed: ready
+                              ? () => _setTool(EditorTool.adjust)
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  if (_saveFailed) ...[
+                    Text(
+                      s.failed,
+                      style: mgTextStyle(c, size: MgType.caption, color: c.fg2),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(4),
+                    child: MgPrimaryButton(
+                      label: _saving ? s.saving : s.done,
+                      height: MgMetrics.scaled(context, 28),
+                      onPressed: ready ? _done : null,
+                    ),
+                  ),
+                ],
               ),
-            MgIconButton(
-              icon: EditorIcons.shapes,
-              tooltip: s.shapes,
-              selected: _tool == EditorTool.shapes,
-              toggle: true,
-              onPressed: ready ? () => _setTool(EditorTool.shapes) : null,
             ),
-            MgIconButton(
-              icon: EditorIcons.adjust,
-              tooltip: s.adjust,
-              selected: _tool == EditorTool.adjust,
-              toggle: true,
-              onPressed: ready ? () => _setTool(EditorTool.adjust) : null,
-            ),
-            const Spacer(),
-            if (_saveFailed) ...[
-              Text(
-                s.failed,
-                style: mgTextStyle(c, size: MgType.caption, color: c.fg2),
-              ),
-              const SizedBox(width: 10),
-            ],
-            MgPrimaryButton(
-              label: _saving ? s.saving : s.done,
-              height: 28,
-              onPressed: ready ? _done : null,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1374,20 +1434,33 @@ class _ToolPanel extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => IgnorePointer(
-    ignoring: !visible,
-    child: AnimatedSlide(
-      offset: visible ? Offset.zero : const Offset(0, 0.25),
-      duration: const Duration(milliseconds: 260),
-      curve: _ease,
-      child: AnimatedOpacity(
-        opacity: visible ? 1 : 0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        child: Glass(
-          radius: 20,
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          child: child,
+  Widget build(BuildContext context) => ExcludeSemantics(
+    excluding: !visible,
+    // A hidden panel takes no focus: Tab walks only the current tool.
+    child: ExcludeFocus(
+      excluding: !visible,
+      child: FocusTraversalOrder(
+        order: const NumericFocusOrder(2),
+        child: IgnorePointer(
+          ignoring: !visible,
+          child: AnimatedSlide(
+            offset: visible ? Offset.zero : const Offset(0, 0.25),
+            duration: const Duration(milliseconds: 260),
+            curve: _ease,
+            child: AnimatedOpacity(
+              opacity: visible ? 1 : 0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              child: Glass(
+                radius: 20,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: child,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     ),

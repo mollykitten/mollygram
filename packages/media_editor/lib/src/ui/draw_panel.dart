@@ -140,42 +140,38 @@ class _SwatchState extends State<_Swatch> {
     final outline = (isWhite && !c.isDark) || (isBlack && c.isDark)
         ? c.separator
         : const Color(0x00000000);
-    return Semantics(
-      button: true,
-      selected: widget.selected,
-      label: widget.label,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onPressed,
-          behavior: HitTestBehavior.opaque,
-          child: SizedBox.square(
-            dimension: 28,
-            child: Center(
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutBack,
-                width: 22 * scale,
-                height: 22 * scale,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: widget.color,
-                  border: Border.all(color: outline),
-                  boxShadow: widget.selected
-                      ? [
-                          BoxShadow(
-                            color: c.isDark
-                                ? const Color(0xFF1C1E22)
-                                : const Color(0xFFFFFFFF),
-                            spreadRadius: 2,
-                          ),
-                          BoxShadow(color: widget.color, spreadRadius: 3.5),
-                        ]
-                      : null,
-                ),
-              ),
+    final size = MgMetrics.scaled(context, 28);
+    return MgPressable(
+      role: MgPressableRole.radio,
+      checked: widget.selected,
+      semanticsLabel: widget.label,
+      onTap: widget.onPressed,
+      onHover: (h) => setState(() => _hover = h),
+      scale: 1,
+      focusRadius: size / 2,
+      builder: (context, st) => SizedBox.square(
+        dimension: size,
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutBack,
+            width: 22 * scale,
+            height: 22 * scale,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: widget.color,
+              border: Border.all(color: outline),
+              boxShadow: widget.selected
+                  ? [
+                      BoxShadow(
+                        color: c.isDark
+                            ? const Color(0xFF1C1E22)
+                            : const Color(0xFFFFFFFF),
+                        spreadRadius: 2,
+                      ),
+                      BoxShadow(color: widget.color, spreadRadius: 3.5),
+                    ]
+                  : null,
             ),
           ),
         ),
@@ -207,9 +203,11 @@ class EditorSlider extends StatelessWidget {
       slider: true,
       label: label,
       value: '${(value * 100).round()}%',
+      increasedValue: '${((value + 0.1).clamp(0.0, 1.0) * 100).round()}%',
+      decreasedValue: '${((value - 0.1).clamp(0.0, 1.0) * 100).round()}%',
       child: SizedBox(
         width: 112,
-        height: 32,
+        height: MgMetrics.scaled(context, 32),
         child: SliderTheme(
           data: SliderThemeData(
             trackHeight: 14,

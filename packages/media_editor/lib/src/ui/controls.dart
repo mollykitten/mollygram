@@ -46,7 +46,7 @@ class _EditorChipState extends State<EditorChip> {
         return AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           curve: Curves.easeOut,
-          height: 26,
+          constraints: BoxConstraints(minHeight: MgMetrics.scaled(context, 26)),
           padding: const EdgeInsets.symmetric(horizontal: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(

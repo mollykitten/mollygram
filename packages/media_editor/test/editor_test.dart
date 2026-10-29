@@ -116,16 +116,13 @@ void main() {
     await tester.pumpAndSettle();
     // Escape leaves the crop tool first.
     expect(
-      tester
-          .widget<IgnorePointer>(
-            find
-                .ancestor(
-                  of: find.text('Square'),
-                  matching: find.byType(IgnorePointer),
-                )
-                .first,
+      find
+          .ancestor(
+            of: find.text('Square'),
+            matching: find.byType(IgnorePointer),
           )
-          .ignoring,
+          .evaluate()
+          .any((e) => (e.widget as IgnorePointer).ignoring),
       isTrue,
     );
     expect(find.text('Done'), findsOneWidget);
