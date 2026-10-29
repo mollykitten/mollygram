@@ -287,6 +287,7 @@ class _ChatSearchBarState extends State<ChatSearchBar> {
                 icon: MgIcons.file,
                 tooltip: l10n.searchFilter,
                 selected: _kind != null,
+                toggle: true,
                 onPressed: () {
                   final box = context.findRenderObject()! as RenderBox;
                   unawaited(
@@ -305,6 +306,7 @@ class _ChatSearchBarState extends State<ChatSearchBar> {
                   icon: MgIcons.profile,
                   tooltip: l10n.searchBySender,
                   selected: _sender != null,
+                  toggle: true,
                   onPressed: () {
                     final box = context.findRenderObject()! as RenderBox;
                     unawaited(

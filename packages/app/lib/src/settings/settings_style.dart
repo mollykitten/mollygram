@@ -287,6 +287,7 @@ class SettingsRow extends StatefulWidget implements SettingsGroupRow {
     this.onTap,
     this.chevron = false,
     this.destructive = false,
+    this.toggled,
   });
 
   final String title;
@@ -294,6 +295,10 @@ class SettingsRow extends StatefulWidget implements SettingsGroupRow {
   final Widget? leading;
   final Widget? trailing;
   final VoidCallback? onTap;
+
+  /// The on/off state of a row that is a switch, for screen readers; null
+  /// for any other row.
+  final bool? toggled;
   final bool chevron;
   final bool destructive;
 
@@ -383,11 +388,21 @@ class _SettingsRowState extends State<SettingsRow> {
       return row;
     }
 
-    if (!tappable) return MergeSemantics(child: body());
+    if (!tappable) {
+      return MergeSemantics(
+        child: widget.toggled == null
+            ? body()
+            : Semantics(toggled: widget.toggled, enabled: false, child: body()),
+      );
+    }
     return MergeSemantics(
       child: MgPressable(
         scale: 1,
         focusRadius: 0,
+        toggled: widget.toggled,
+        role: widget.toggled == null
+            ? MgPressableRole.button
+            : MgPressableRole.toggle,
         onTap: widget.onTap,
         builder: (context, state) =>
             body(hover: state.hovered, pressed: state.pressed),
@@ -608,6 +623,7 @@ class SettingsSwitchRow extends StatelessWidget implements SettingsGroupRow {
     subtitle: subtitle,
     leading: leading,
     onTap: onChanged == null ? null : () => onChanged!(!value),
+    toggled: value,
     trailing: ExcludeSemantics(
       child: SettingsSwitch(value: value, onChanged: onChanged),
     ),

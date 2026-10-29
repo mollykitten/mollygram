@@ -90,6 +90,7 @@ class _PickerState extends State<_Picker> {
               Center(
                 child: MgCalendar(
                   month: _day,
+                  selected: _day,
                   today: _now,
                   first: DateTime(_now.year, _now.month, _now.day),
                   monthTitle: (month) => DateFormat.yMMMM(locale).format(month),

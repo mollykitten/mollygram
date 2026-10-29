@@ -1,16 +1,26 @@
 import 'package:flutter/widgets.dart';
 
 import '../theme/colors.dart';
+import 'pressable.dart';
 
 /// A macOS switch, 34×20, the knob sliding on a spring-like curve.
 ///
 /// With [onChanged] it flips itself when clicked; without, it only shows
 /// [value], for a row that takes the click as a whole.
 class MgSwitch extends StatelessWidget {
-  const MgSwitch({super.key, required this.value, this.onChanged});
+  const MgSwitch({
+    super.key,
+    required this.value,
+    this.onChanged,
+    this.semanticLabel,
+  });
 
   final bool value;
   final ValueChanged<bool>? onChanged;
+
+  /// What screen readers call the switch when no row around it does. Giving
+  /// it hides the semantics of the track, which has none of its own.
+  final String? semanticLabel;
 
   static const _duration = Duration(milliseconds: 220);
   static const _curve = Cubic(0.23, 1, 0.32, 1);
@@ -21,7 +31,7 @@ class MgSwitch extends StatelessWidget {
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : _duration;
-    Widget track = AnimatedContainer(
+    final track = AnimatedContainer(
       duration: duration,
       curve: _curve,
       width: 34,
@@ -57,16 +67,17 @@ class MgSwitch extends StatelessWidget {
       ),
     );
     final onChanged = this.onChanged;
-    if (onChanged != null) {
-      track = MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(onTap: () => onChanged(!value), child: track),
-      );
+    if (onChanged == null) {
+      return Semantics(toggled: value, label: semanticLabel, child: track);
     }
-    return Semantics(
+    return MgPressable(
+      role: MgPressableRole.toggle,
       toggled: value,
-      onTap: onChanged == null ? null : () => onChanged(!value),
-      child: track,
+      semanticsLabel: semanticLabel,
+      scale: 1,
+      focusRadius: 10,
+      onTap: () => onChanged(!value),
+      builder: (context, _) => track,
     );
   }
 }

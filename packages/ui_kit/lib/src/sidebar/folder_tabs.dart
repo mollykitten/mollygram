@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../forms/pressable.dart';
 import '../icons.dart';
 import '../theme/colors.dart';
 import '../theme/theme.dart';
@@ -294,45 +295,40 @@ class FolderTab extends StatefulWidget {
 }
 
 class _FolderTabState extends State<FolderTab> {
-  bool _hover = false;
-
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
     final on = widget.selected;
-    return Semantics(
-      button: true,
+    return MgPressable(
+      role: MgPressableRole.tab,
       selected: on,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            height: widget.height,
-            padding: const EdgeInsets.symmetric(horizontal: FolderTab._padding),
-            alignment: Alignment.center,
-            decoration: widget.raised
-                ? BoxDecoration(
-                    color: c.card,
-                    borderRadius: BorderRadius.circular(
-                      widget.icon == null ? 13 : 10,
-                    ),
-                    boxShadow: [_thumbShadow(c)],
-                  )
-                : null,
-            child: widget.icon == null ? _inline(c, on) : _stacked(c, on),
-          ),
-        ),
+      excludeSemantics: false,
+      onTap: widget.onTap,
+      scale: 1,
+      focusRadius: widget.icon == null ? 13 : 10,
+      builder: (context, st) => Container(
+        height: widget.height,
+        padding: const EdgeInsets.symmetric(horizontal: FolderTab._padding),
+        alignment: Alignment.center,
+        decoration: widget.raised
+            ? BoxDecoration(
+                color: c.card,
+                borderRadius: BorderRadius.circular(
+                  widget.icon == null ? 13 : 10,
+                ),
+                boxShadow: [_thumbShadow(c)],
+              )
+            : null,
+        child: widget.icon == null
+            ? _inline(c, on, st.hovered)
+            : _stacked(c, on, st.hovered),
       ),
     );
   }
 
   /// An icon over the label; an unread count is an accent dot.
-  Widget _stacked(MgColors c, bool on) {
-    final tone = on ? c.accent : (_hover ? c.fg : c.icon);
+  Widget _stacked(MgColors c, bool on, bool hover) {
+    final tone = on ? c.accent : (hover ? c.fg : c.icon);
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -366,7 +362,7 @@ class _FolderTabState extends State<FolderTab> {
           style: FolderTab._labelStyle(
             c,
             stacked: true,
-          ).copyWith(color: on || _hover ? c.fg : c.fg2),
+          ).copyWith(color: on || hover ? c.fg : c.fg2),
           child: Text(
             widget.label,
             maxLines: 1,
@@ -377,7 +373,7 @@ class _FolderTabState extends State<FolderTab> {
     );
   }
 
-  Widget _inline(MgColors c, bool on) => Row(
+  Widget _inline(MgColors c, bool on, bool hover) => Row(
     mainAxisSize: MainAxisSize.min,
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
@@ -387,7 +383,7 @@ class _FolderTabState extends State<FolderTab> {
           style: FolderTab._labelStyle(
             c,
             stacked: false,
-          ).copyWith(color: on || _hover ? c.fg : c.fg2),
+          ).copyWith(color: on || hover ? c.fg : c.fg2),
           child: Text(
             widget.label,
             maxLines: 1,

@@ -17,6 +17,7 @@ class MgIconButton extends StatefulWidget {
     this.iconSize = 17,
     this.size = 32,
     this.quiet = false,
+    this.toggle = false,
   });
 
   final MgIconData icon;
@@ -35,6 +36,10 @@ class MgIconButton extends StatefulWidget {
   /// Rest in the lighter [MgColors.quiet] grey, as the composer's buttons.
   final bool quiet;
 
+  /// The button is an on/off switch: screen readers hear [selected] either
+  /// way. Otherwise only the on state is announced.
+  final bool toggle;
+
   @override
   State<MgIconButton> createState() => _MgIconButtonState();
 }
@@ -49,12 +54,16 @@ class _MgIconButtonState extends State<MgIconButton> {
       child: MgPressable(
         onTap: widget.onPressed,
         semanticsLabel: widget.tooltip,
-        toggled: widget.selected ? true : null,
+        toggled: widget.toggle
+            ? widget.selected
+            : (widget.selected ? true : null),
         focusRadius: widget.size / 2,
         scale: 0.92,
         builder: (context, st) {
           final hover = st.hovered;
-          final fg = widget.selected
+          final fg = widget.onPressed == null
+              ? c.fg2.withValues(alpha: 0.4)
+              : widget.selected
               ? c.accent
               : (hover ? c.fg : (widget.quiet ? c.quiet : c.icon));
           final bg = widget.selected

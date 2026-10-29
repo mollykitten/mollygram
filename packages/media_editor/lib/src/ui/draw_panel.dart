@@ -58,6 +58,7 @@ class DrawPanel extends StatelessWidget {
             icon: icon,
             tooltip: label,
             selected: brush == tool,
+            toggle: true,
             onPressed: () => onBrush(tool),
           ),
         const EditorDivider(),

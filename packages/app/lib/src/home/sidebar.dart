@@ -397,6 +397,7 @@ class _ArchiveButton extends StatelessWidget {
       icon: MgIcons.archive,
       tooltip: tooltip,
       selected: selected,
+      toggle: true,
       onPressed: onTap,
     ),
   );
