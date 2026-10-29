@@ -34,7 +34,7 @@ class TabStrip extends StatelessWidget {
       container: true,
       label: strings.tabs,
       child: SizedBox(
-        height: height,
+        height: MgMetrics.scaled(context, height),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
           child: Row(
@@ -75,7 +75,7 @@ String tabTitle(WorkspaceTab tab, ChatDirectory directory, ShellStrings s) {
   return names.isEmpty ? s.newTab : names.join(' · ');
 }
 
-class _TabPill extends StatefulWidget {
+class _TabPill extends StatelessWidget {
   const _TabPill({
     super.key,
     required this.title,
@@ -92,81 +92,78 @@ class _TabPill extends StatefulWidget {
   final VoidCallback onClose;
 
   @override
-  State<_TabPill> createState() => _TabPillState();
-}
-
-class _TabPillState extends State<_TabPill> {
-  bool _hover = false;
-
-  @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    final showClose = _hover || widget.selected;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: Listener(
-        // Middle click closes a tab, as in browsers.
-        onPointerDown: (e) {
-          if (e.kind == PointerDeviceKind.mouse &&
-              e.buttons == kMiddleMouseButton) {
-            widget.onClose();
-          }
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onSelect,
-          child: Semantics(
-            button: true,
-            selected: widget.selected,
-            label: widget.title,
-            child: Container(
-              height: 26,
-              constraints: const BoxConstraints(maxWidth: 220, minWidth: 64),
-              margin: const EdgeInsets.only(right: 2),
-              padding: const EdgeInsets.only(left: 10, right: 4),
-              decoration: BoxDecoration(
-                color: widget.selected ? c.field : null,
-                borderRadius: BorderRadius.circular(13),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      widget.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: widget.selected || _hover ? c.fg : c.fg2,
-                      ),
+    return Listener(
+      // Middle click closes a tab, as in browsers.
+      onPointerDown: (e) {
+        if (e.kind == PointerDeviceKind.mouse &&
+            e.buttons == kMiddleMouseButton) {
+          onClose();
+        }
+      },
+      child: MgPressable(
+        onTap: onSelect,
+        role: MgPressableRole.tab,
+        selected: selected,
+        scale: 1,
+        focusRadius: 13,
+        builder: (context, state) {
+          final showClose = state.hovered || state.focused || selected;
+          return Container(
+            constraints: BoxConstraints(
+              maxWidth: 220,
+              minWidth: 64,
+              minHeight: MgMetrics.scaled(context, 26),
+            ),
+            margin: const EdgeInsets.only(right: MgSpace.xxs),
+            padding: const EdgeInsets.only(left: MgSpace.ml, right: MgSpace.xs),
+            decoration: BoxDecoration(
+              color: selected ? c.field : null,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: selected || state.hovered ? c.fg : c.fg2,
                     ),
                   ),
-                  const SizedBox(width: 2),
-                  // The slot keeps its width so titles do not jump on hover.
-                  Opacity(
-                    opacity: showClose ? 1 : 0,
+                ),
+                const SizedBox(width: MgSpace.xxs),
+                // The slot keeps its width so titles do not jump on hover.
+                Opacity(
+                  opacity: showClose ? 1 : 0,
+                  // Its own node, so the close label does not merge into the
+                  // tab's.
+                  child: Semantics(
+                    container: true,
                     child: _IconButton(
                       glyph: ShellGlyph.close,
-                      label: widget.strings.closeTab,
+                      label: strings.closeTab,
                       color: c.fg2,
                       size: 18,
-                      onTap: widget.onClose,
+                      onTap: showClose ? onClose : null,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 }
 
-class _IconButton extends StatefulWidget {
+class _IconButton extends StatelessWidget {
   const _IconButton({
     required this.glyph,
     required this.label,
@@ -178,43 +175,31 @@ class _IconButton extends StatefulWidget {
   final ShellGlyph glyph;
   final String label;
   final Color color;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final double size;
-
-  @override
-  State<_IconButton> createState() => _IconButtonState();
-}
-
-class _IconButtonState extends State<_IconButton> {
-  bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
     final c = MgColors.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Semantics(
-          button: true,
-          label: widget.label,
-          child: Container(
-            width: widget.size,
-            height: widget.size,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _hover ? c.hover : null,
-            ),
-            child: Glyph(
-              widget.glyph,
-              size: widget.size * 0.55,
-              color: _hover ? c.fg : widget.color,
-              strokeWidth: 2,
-            ),
-          ),
+    final side = MgMetrics.scaled(context, size);
+    return MgPressable(
+      onTap: onTap,
+      semanticsLabel: label,
+      scale: 1,
+      focusRadius: side / 2,
+      builder: (context, state) => Container(
+        width: side,
+        height: side,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: state.hovered ? c.hover : null,
+        ),
+        child: Glyph(
+          glyph,
+          size: side * 0.55,
+          color: state.hovered ? c.fg : color,
+          strokeWidth: 2,
         ),
       ),
     );

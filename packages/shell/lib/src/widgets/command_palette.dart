@@ -487,7 +487,7 @@ class _CommandPaletteState extends State<CommandPalette> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
-              height: 52,
+              height: MgMetrics.scaled(context, 52),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -560,7 +560,7 @@ class _CommandPaletteState extends State<CommandPalette> {
                 Container(height: 0.5, color: c.separator),
             ],
             SizedBox(
-              height: 34,
+              height: MgMetrics.scaled(context, 34),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: DefaultTextStyle(
@@ -569,11 +569,15 @@ class _CommandPaletteState extends State<CommandPalette> {
                   overflow: TextOverflow.ellipsis,
                   child: Row(
                     children: [
-                      Text('⏎ ${s.hintOpen}'),
+                      Flexible(child: Text('⏎ ${s.hintOpen}')),
                       const SizedBox(width: 16),
-                      Text('$primaryModifierLabel⏎ ${s.hintSplit}'),
+                      Flexible(
+                        child: Text('$primaryModifierLabel⏎ ${s.hintSplit}'),
+                      ),
                       const SizedBox(width: 16),
-                      Text('$altModifierLabel⏎ ${s.hintNewTab}'),
+                      Flexible(
+                        child: Text('$altModifierLabel⏎ ${s.hintNewTab}'),
+                      ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Text(s.hintPrefixes, textAlign: TextAlign.end),
@@ -799,57 +803,63 @@ class _PaletteRow extends StatelessWidget {
       ),
     };
 
-    return MouseRegion(
+    return MgPressable(
+      onTap: onTap,
+      onHover: (hovered) {
+        if (hovered) onHover();
+      },
+      scale: 1,
+      selected: selected,
+      semanticsLabel: title,
+      // The remove button keeps its own node; the title is the row's label.
+      excludeSemantics: false,
       cursor: SystemMouseCursors.click,
-      onHover: (_) => onHover(),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Semantics(
-          button: true,
-          selected: selected,
-          label: title,
-          child: Container(
-            height: CommandPalette.itemHeight,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: selected ? c.accent : null,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                SizedBox(width: 24, height: 24, child: Center(child: leading)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      text: title,
-                      children: [
-                        if (sub != null && sub.isNotEmpty)
-                          TextSpan(
-                            text: '  $sub',
-                            style: TextStyle(color: fg2),
-                          ),
-                      ],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: fg),
+      builder: (context, _) => Container(
+        constraints: BoxConstraints(
+          minHeight: MgMetrics.scaled(context, CommandPalette.itemHeight),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: MgSpace.ml),
+        decoration: BoxDecoration(
+          color: selected ? c.accent : null,
+          borderRadius: BorderRadius.circular(MgRadius.control),
+        ),
+        child: Row(
+          children: [
+            SizedBox(width: 24, height: 24, child: Center(child: leading)),
+            const SizedBox(width: MgSpace.ml),
+            Expanded(
+              child: ExcludeSemantics(
+                child: Text.rich(
+                  TextSpan(
+                    text: title,
+                    children: [
+                      if (sub != null && sub.isNotEmpty)
+                        TextSpan(
+                          text: '  $sub',
+                          style: TextStyle(color: fg2),
+                        ),
+                    ],
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: fg),
                 ),
-                if (kbd != null)
-                  Text(kbd, style: TextStyle(fontSize: 12, color: fg2)),
-                if (removable)
-                  MgIconButton(
-                    icon: MgIcons.close,
-                    tooltip: strings.removeRecentSearch(title),
-                    onPressed: onRemove,
-                    size: 28,
-                    iconSize: 13,
-                  ),
-              ],
+              ),
             ),
-          ),
+            if (kbd != null)
+              Text(kbd, style: TextStyle(fontSize: 12, color: fg2)),
+            if (removable)
+              Semantics(
+                container: true,
+                child: MgIconButton(
+                  icon: MgIcons.close,
+                  tooltip: strings.removeRecentSearch(title),
+                  onPressed: onRemove,
+                  size: 28,
+                  iconSize: 13,
+                ),
+              ),
+          ],
         ),
       ),
     );
